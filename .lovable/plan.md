@@ -1,71 +1,54 @@
-# Plantech — Indicador de saúde da planta no perfil individual
+# Diagnóstico — seletor de idioma
 
-## Respostas às 5 perguntas de pré-planejamento
+## Resumo
 
-### 1. Campos de `plants` relacionados a cuidados
+O mecanismo de i18n **funciona** na tela onde o seletor existe. Verifiquei ao vivo no preview: cliquei em `en` na landing e o título mudou de "Seu jardim, organizado." para "Your garden, organized.", `document.documentElement.lang` virou `en` e `localStorage["plantech.locale"]` gravou `en`.
 
-A tabela `plants` não possui campos diretos de acompanhamento de cuidados. Os únicos campos temporais/contextuais são:
+O que está de fato quebrado é a **cobertura e a persistência** do seletor, não o `t()`.
 
-- `acquired_at` (date) — data de aquisição, apenas informativa.
-- `is_archived` (boolean) — estado de arquivamento.
-- `created_at` / `updated_at` — metadados de auditoria.
+## Respostas às perguntas
 
-Todo o acompanhamento de cuidados está na tabela `plant_care_profile` (1:1 com `plants`) e no histórico `plant_care_log`.
+1. **Onde fica o estado do idioma?**
+   React Context em `src/i18n/i18n.tsx` (`I18nProvider`, `useState<Locale>`), montado uma vez em `src/routes/__root.tsx`. Persistência em `localStorage` sob a chave `plantech.locale`. Não há parâmetro de URL nem Zustand. O SSR sempre renderiza `pt` (default) e o valor salvo/idioma do navegador é aplicado depois da hidratação, via `useEffect`, para evitar hydration mismatch.
 
-### 2. Campos e eventos de `plant_care_log`
+2. **Componente do seletor:** `src/components/language-switcher.tsx`. É usado em apenas 3 telas: `src/routes/index.tsx`, `src/routes/auth.tsx` e `src/routes/_authenticated/app.tsx`.
 
-A tabela `plant_care_log` registra eventos pontuais de cuidado:
+3. **Como o `t()` recebe o locale:** por hook/contexto — `useI18n()` devolve `{ locale, setLocale, t }`; `t` é recriado via `useMemo` sempre que `locale` muda e chama `translate(locale, key)` em `src/i18n/translations.ts`.
 
-- `care_type` (enum `care_log_type`): `watering`, `fertilizing`, `pruning`, `repotting`, `treatment`, `note`.
-- `performed_at` (timestamptz) — quando o cuidado foi realizado.
-- `performed_by` (uuid) — usuário que registrou.
-- `notes` (text) — observação livre.
+4. **Fluxo ao trocar idioma:**
+   clique no botão → `setLocale(code)` → `setLocaleState` + gravação no `localStorage` → o `useMemo` do provider gera um novo `value` (nova função `t`) → todos os consumidores de `useI18n()` re-renderizam → `useEffect` atualiza `document.documentElement.lang`. Confirmado funcionando no preview.
 
-Atualmente o `CareTimeline` já lê esses dados, mas não há cálculo de status ou atraso baseado nos eventos.
+5. **Erros no console:** nenhum erro relacionado à troca de idioma na execução ao vivo; a troca respondeu normalmente.
 
-### 3. Onde calcular o health score
+6. **Estrutura das chaves:** correta e completa nos 3 idiomas — 279 chaves em `pt`, 279 em `en`, 279 em `es`, sem nenhuma faltando. Estrutura plana com chaves em string (`"landing.heading"`, `"auth.signIn"`...), `TranslationKey` derivado de `en`, e fallback `dictionaries[locale][key] ?? dictionaries.en[key] ?? key`.
 
-**Recomendação: client-side, derivado dos dados já carregados.**
+Primeiras linhas de `src/i18n/translations.ts`:
 
-Motivos:
+```text
+export const LOCALES = ["pt", "en", "es"] as const;
+export type Locale = (typeof LOCALES)[number];
 
-- `plant_care_profile` já traz `watering_interval_days`, `fertilizing_interval_days` e `last_watered_at`.
-- `plant_care_log` já traz o histórico de regas/fertilizações.
-- Calcular no cliente evita uma nova coluna/cached score que precisaria ser invalidada a cada novo log ou alteração de perfil.
-- A lógica é pequena: comparar `last_watered_at` + `watering_interval_days` com `hoje`, e similar para fertilização.
+export const LOCALE_LABELS: Record<Locale, string> = {
+  pt: "Português",
+  en: "English",
+  es: "Español",
+};
 
-Se no futuro o score for usado em listagens, filtros ou notificações, aí sim vale persistir (ex.: coluna `health_status` em `plants` atualizada por trigger em `plant_care_log`). Para o perfil individual, client-side é suficiente.
+const dictionaries = {
+  pt: {
+    "app.name": "Plantech",
+    "app.tagline": "Cuide das suas plantas com método.",
+    ...
+```
 
-### 4. Componente visual recomendado
+## Causas prováveis do "não funciona" percebido
 
-Dado o design atual do perfil (cards arredondados com bordas sutis, ícones do Lucide, tipografia pequena e semântica), o indicador mais adequado é:
+- **Seletor ausente na maior parte do app.** Nenhuma tela de plantas (lista, detalhe, novo, editar, identificação) renderiza o `LanguageSwitcher`. Quem está dentro do fluxo de plantas não tem como trocar idioma.
+- **Sem persistência por usuário.** `preferred_language` é gravado no cadastro, mas nunca é lido para inicializar o locale nem atualizado quando o usuário troca. Em outro navegador/dispositivo o app volta para `pt`.
+- **Conteúdo fora do dicionário permanece em português.** Títulos/descrições de `head()` (`__root`, `index`, `auth`) são strings fixas em pt-BR; textos vindos do banco (guia de cuidado por espécie, notas da IA) são gerados por idioma e só mudam quando existe cache no idioma novo.
+- **Flash inicial em pt.** Em recarga dura, o primeiro frame vem em `pt` até o `useEffect` de hidratação aplicar o idioma salvo.
 
-- **Badge discreto com cor semântica + ícone** no topo do `PlantHero`.
-- Estados sugeridos:
-  - `healthy` — verde suave (`text-emerald-foreground`/`bg-emerald`) + ícone `CheckCircle2`.
-  - `needs_attention` — âmbar suave + ícone `AlertCircle`.
-  - `overdue` — vermelho suave (`text-destructive-foreground`/`bg-destructive`) + ícone `AlertTriangle`.
-  - `unknown` — cinza neutro + ícone `HelpCircle` (quando faltam dados).
+## Perguntas antes de corrigir
 
-Não recomendo progress bar (implica precisão numérica que não temos) nem emoji scale (quebra a consistência visual do Lucide). O badge pode ser expandido futuramente para um tooltip com a justificativa textual.
-
-### 5. Utilitários de data existentes
-
-- O projeto já depende de `date-fns@^4.1.0`, portanto `differenceInDays`, `addDays`, `isPast`, etc. estão disponíveis.
-- `src/lib/utils.ts` contém apenas `cn(...)` para Tailwind; não há helpers de data customizados.
-- O `CareTimeline` já usa `new Date(event.performed_at).toLocaleString(locale)` para formatação local.
-
-## Direção de implementação proposta
-
-1. Criar um helper puro `getPlantHealthStatus(profile, careLog)` em `src/lib/plant-health.ts` que retorne um dos estados acima e, opcionalmente, a justificativa (ex.: "última rega há X dias", "falta Y dias para a próxima rega").
-2. Adicionar as chaves de tradução `health.*` em `src/i18n/translations.ts` para pt/en/es.
-3. Inserir um `HealthBadge` dentro do `PlantHero`, logo abaixo do nome da espécie, sem alterar a estrutura dos outros cards.
-4. Garantir que o cálculo seja defensivo: quando `last_watered_at` ou `watering_interval_days` forem nulos, retornar `unknown`.
-5. Não criar novas tabelas ou colunas nesta fase.
-
-## Escopo explícito fora desta fase
-
-- Não calcular score numérico (0-100).
-- Não persistir o status no banco.
-- Não usar IA para inferir saúde.
-- Não adicionar notificações/push.
+- Em qual tela exatamente você viu a troca sem efeito? (Isso confirma se é a ausência do seletor ou outra coisa.)
+- O idioma deve ficar salvo no perfil do usuário (server-side) além do navegador?
