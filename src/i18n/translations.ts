@@ -462,6 +462,30 @@ const dictionaries = {
     "identify.saveError": "No se pudo guardar.",
     "identify.usageLogWarning": "El registro de uso de IA fall\u00f3 para este an\u00e1lisis. El resultado sigue siendo v\u00e1lido.",
     "identify.fromDetail": "Identificar especie",
+    "identify.probableTitle": "Identificación probable",
+    "identify.uncertaintyNotice":
+      "La foto y la pista ayudan, pero esta identificación puede no ser definitiva.",
+    "identify.addHint": "Añadir una pista opcional",
+    "identify.hintHelp":
+      "Ej.: ají morado cultivado en maceta. La pista es opcional y mejora el resultado.",
+    "identify.hintPlaceholder": "Ej.: ají morado cultivado en maceta",
+    "identify.morePhotosHint":
+      "Añade fotos de hojas, flores y frutos para mejorar la precisión.",
+    "identify.photoLimit": "Puedes enviar hasta 3 fotos por análisis.",
+    "identify.setPrimary": "Usar como principal",
+    "identify.primaryBadge": "Principal",
+    "identify.removePhoto": "Quitar foto",
+    "identify.uploadPartialError":
+      "No se pudieron enviar todas las fotos. Reintenta o quita la que falló.",
+    "identify.createdPartialPhotos":
+      "Planta creada, pero algunas fotos no se pudieron adjuntar.",
+    "identify.genusOnlyNote":
+      "Identificación amplia: fotos de hojas, flores o frutos ayudan a precisar la especie.",
+    "identify.analyzingMultiHint":
+      "Analizando todas las fotos juntas. Puede tardar hasta un minuto.",
+    "identify.rank.species": "Especie",
+    "identify.rank.genus": "Género",
+    "identify.rank.cultivar": "Cultivar",
 
     "role.owner": "Propietario",
     "role.admin": "Administrador",
