@@ -27,3 +27,5 @@ npm run dev
 - TypeScript
 - React
 - Tailwind CSS
+
+<!-- Atualizado em 23/08/2026. -->
