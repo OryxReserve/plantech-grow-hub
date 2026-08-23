@@ -352,6 +352,7 @@ const dictionaries = {
       "Plant created, but some photos could not be attached.",
     "identify.genusOnlyNote":
       "Broad identification: photos of leaves, flowers or fruits help narrow the species.",
+    "identify.broadBadge": "Broad identification",
     "identify.analyzingMultiHint":
       "Analyzing all photos together. This can take up to a minute.",
     "identify.rank.species": "Species",
