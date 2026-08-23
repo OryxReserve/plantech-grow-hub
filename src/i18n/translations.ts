@@ -156,6 +156,30 @@ const dictionaries = {
     "identify.saveError": "N\u00e3o foi poss\u00edvel salvar.",
     "identify.usageLogWarning": "O registro de uso de IA falhou para esta an\u00e1lise. O resultado continua v\u00e1lido.",
     "identify.fromDetail": "Identificar esp\u00e9cie",
+    "identify.probableTitle": "Identificação provável",
+    "identify.uncertaintyNotice":
+      "A foto e a dica ajudam, mas esta identificação pode não ser definitiva.",
+    "identify.addHint": "Adicionar uma dica opcional",
+    "identify.hintHelp":
+      "Ex.: pimenta roxa cultivada em vaso. A dica é opcional e melhora o resultado.",
+    "identify.hintPlaceholder": "Ex.: pimenta roxa cultivada em vaso",
+    "identify.morePhotosHint":
+      "Adicione fotos de folhas, flores e frutos para melhorar a precisão.",
+    "identify.photoLimit": "Você pode enviar até 3 fotos por análise.",
+    "identify.setPrimary": "Usar como principal",
+    "identify.primaryBadge": "Principal",
+    "identify.removePhoto": "Remover foto",
+    "identify.uploadPartialError":
+      "Não foi possível enviar todas as fotos. Tente de novo ou remova a que falhou.",
+    "identify.createdPartialPhotos":
+      "Planta cadastrada, mas algumas fotos não puderam ser anexadas.",
+    "identify.genusOnlyNote":
+      "Identificação ampla: fotos de folhas, flores ou frutos ajudam a chegar na espécie.",
+    "identify.analyzingMultiHint":
+      "Analisando todas as fotos juntas. Pode levar até um minuto.",
+    "identify.rank.species": "Espécie",
+    "identify.rank.genus": "Gênero",
+    "identify.rank.cultivar": "Cultivar",
 
     "role.owner": "Proprietário",
     "role.admin": "Administrador",
@@ -309,6 +333,30 @@ const dictionaries = {
     "identify.saveError": "Could not save.",
     "identify.usageLogWarning": "AI usage logging failed for this analysis. The result is still valid.",
     "identify.fromDetail": "Identify species",
+    "identify.probableTitle": "Probable identification",
+    "identify.uncertaintyNotice":
+      "The photos and the hint help, but this identification may not be definitive.",
+    "identify.addHint": "Add an optional hint",
+    "identify.hintHelp":
+      "E.g.: purple chilli grown in a pot. The hint is optional and improves the result.",
+    "identify.hintPlaceholder": "E.g.: purple chilli grown in a pot",
+    "identify.morePhotosHint":
+      "Add photos of leaves, flowers and fruits to improve accuracy.",
+    "identify.photoLimit": "You can send up to 3 photos per analysis.",
+    "identify.setPrimary": "Use as main",
+    "identify.primaryBadge": "Main",
+    "identify.removePhoto": "Remove photo",
+    "identify.uploadPartialError":
+      "Some photos could not be uploaded. Retry or remove the failed one.",
+    "identify.createdPartialPhotos":
+      "Plant created, but some photos could not be attached.",
+    "identify.genusOnlyNote":
+      "Broad identification: photos of leaves, flowers or fruits help narrow the species.",
+    "identify.analyzingMultiHint":
+      "Analyzing all photos together. This can take up to a minute.",
+    "identify.rank.species": "Species",
+    "identify.rank.genus": "Genus",
+    "identify.rank.cultivar": "Cultivar",
 
     "role.owner": "Owner",
     "role.admin": "Admin",
@@ -462,6 +510,30 @@ const dictionaries = {
     "identify.saveError": "No se pudo guardar.",
     "identify.usageLogWarning": "El registro de uso de IA fall\u00f3 para este an\u00e1lisis. El resultado sigue siendo v\u00e1lido.",
     "identify.fromDetail": "Identificar especie",
+    "identify.probableTitle": "Identificación probable",
+    "identify.uncertaintyNotice":
+      "La foto y la pista ayudan, pero esta identificación puede no ser definitiva.",
+    "identify.addHint": "Añadir una pista opcional",
+    "identify.hintHelp":
+      "Ej.: ají morado cultivado en maceta. La pista es opcional y mejora el resultado.",
+    "identify.hintPlaceholder": "Ej.: ají morado cultivado en maceta",
+    "identify.morePhotosHint":
+      "Añade fotos de hojas, flores y frutos para mejorar la precisión.",
+    "identify.photoLimit": "Puedes enviar hasta 3 fotos por análisis.",
+    "identify.setPrimary": "Usar como principal",
+    "identify.primaryBadge": "Principal",
+    "identify.removePhoto": "Quitar foto",
+    "identify.uploadPartialError":
+      "No se pudieron enviar todas las fotos. Reintenta o quita la que falló.",
+    "identify.createdPartialPhotos":
+      "Planta creada, pero algunas fotos no se pudieron adjuntar.",
+    "identify.genusOnlyNote":
+      "Identificación amplia: fotos de hojas, flores o frutos ayudan a precisar la especie.",
+    "identify.analyzingMultiHint":
+      "Analizando todas las fotos juntas. Puede tardar hasta un minuto.",
+    "identify.rank.species": "Especie",
+    "identify.rank.genus": "Género",
+    "identify.rank.cultivar": "Cultivar",
 
     "role.owner": "Propietario",
     "role.admin": "Administrador",

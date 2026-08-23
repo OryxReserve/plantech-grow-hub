@@ -5,9 +5,11 @@ import { useI18n } from "@/i18n/i18n";
 
 export function AnalyzingStep({
   previewUrl,
+  photoCount,
   phase,
 }: {
   previewUrl: string | null;
+  photoCount: number;
   phase: "uploading" | "analyzing";
 }) {
   const { t } = useI18n();
@@ -16,11 +18,18 @@ export function AnalyzingStep({
   return (
     <div className="space-y-5" aria-live="polite" aria-busy="true">
       {previewUrl ? (
-        <img
-          src={previewUrl}
-          alt={t("identify.previewAlt")}
-          className="aspect-square w-full rounded-2xl border border-border object-cover opacity-70"
-        />
+        <div className="relative">
+          <img
+            src={previewUrl}
+            alt={t("identify.previewAlt")}
+            className="aspect-square w-full rounded-2xl border border-border object-cover opacity-70"
+          />
+          {photoCount > 1 ? (
+            <span className="absolute right-3 top-3 rounded-full bg-background/90 px-3 py-1 text-xs font-medium">
+              {photoCount}
+            </span>
+          ) : null}
+        </div>
       ) : (
         <Skeleton className="aspect-square w-full rounded-2xl" />
       )}
@@ -32,7 +41,11 @@ export function AnalyzingStep({
         />
         <div>
           <p className="text-sm font-medium">{label}</p>
-          <p className="text-sm text-muted-foreground">{t("identify.analyzingHint")}</p>
+          <p className="text-sm text-muted-foreground">
+            {phase === "analyzing" && photoCount > 1
+              ? t("identify.analyzingMultiHint")
+              : t("identify.analyzingHint")}
+          </p>
         </div>
       </div>
     </div>

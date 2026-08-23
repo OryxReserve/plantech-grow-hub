@@ -22,6 +22,10 @@ export type AiUsageLogEntry = {
     usage_reported?: boolean;
     error_category?: AiVisionErrorCategory;
     plant_context?: "new" | "existing";
+    /** How many images were sent in the single AI request. */
+    image_count?: number;
+    /** Whether a normalized hint was sent. The hint text is never stored. */
+    hint_provided?: boolean;
   };
 };
 

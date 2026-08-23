@@ -13,18 +13,24 @@ import { PlantScreen } from "@/components/plants/screen";
 import { Button } from "@/components/ui/button";
 import { useActiveAccount } from "@/context/active-account";
 import { useI18n } from "@/i18n/i18n";
-import type { AiVisionErrorCategory, PlantIdentificationCandidate } from "@/lib/ai/vision-provider";
+import {
+  MAX_IDENTIFY_IMAGES,
+  type AiVisionErrorCategory,
+  type PlantIdentificationCandidate,
+} from "@/lib/ai/vision-provider";
 import {
   applyIdentificationToPlant,
   createPlantFromIdentification,
   identifyPlantPhoto,
 } from "@/lib/plant-identification.functions";
 import {
-  removeStagingPhoto,
-  uploadStagingPhoto,
+  createStagedPhoto,
+  isHintTooLong,
+  removeStagingPhotos,
+  uploadStagingPhotos,
   validateIdentifyFile,
   type IdentifyStep,
-  type StagingPhoto,
+  type StagedPhoto,
 } from "@/lib/plant-identification";
 import { plantDetailQuery, plantKeys } from "@/lib/plants";
 import { plantPhotoKeys } from "@/lib/plant-photos";
@@ -50,9 +56,10 @@ function IdentifyPlantPage() {
   const applyToPlant = useServerFn(applyIdentificationToPlant);
 
   const [step, setStep] = useState<IdentifyStep>("select");
-  const [file, setFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [staging, setStaging] = useState<StagingPhoto | null>(null);
+  const [photos, setPhotos] = useState<StagedPhoto[]>([]);
+  const [primaryClientId, setPrimaryClientId] = useState<string | null>(null);
+  const [failedClientIds, setFailedClientIds] = useState<string[]>([]);
+  const [hint, setHint] = useState("");
   const [candidates, setCandidates] = useState<PlantIdentificationCandidate[]>([]);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [values, setValues] = useState<ConfirmValues>(EMPTY_VALUES);
@@ -66,57 +73,101 @@ function IdentifyPlantPage() {
   });
 
   // Any staging object still around when the flow unmounts is removed.
-  const stagingRef = useRef<StagingPhoto | null>(null);
+  const photosRef = useRef<StagedPhoto[]>([]);
   const persistedRef = useRef(false);
-  stagingRef.current = staging;
+  photosRef.current = photos;
   useEffect(
     () => () => {
-      if (!persistedRef.current) void removeStagingPhoto(stagingRef.current);
+      if (!persistedRef.current) void removeStagingPhotos(photosRef.current);
     },
     [],
   );
 
-  const resetPhoto = useCallback(async () => {
-    if (previewUrl && !staging) URL.revokeObjectURL(previewUrl);
-    await removeStagingPhoto(staging);
-    setStaging(null);
-    setFile(null);
-    setPreviewUrl(null);
-    setStep("select");
-  }, [previewUrl, staging]);
+  const primaryPhoto =
+    photos.find((photo) => photo.clientId === primaryClientId) ?? photos[0] ?? null;
 
-  function handleSelectFile(nextFile: File) {
-    const validation = validateIdentifyFile(nextFile);
-    if (validation) {
-      toast.error(
-        validation === "type" ? t("identify.fileTypeError") : t("identify.fileSizeError"),
+  const dropPhoto = useCallback((clientId: string) => {
+    setPhotos((current) => {
+      const target = current.find((photo) => photo.clientId === clientId);
+      if (target) void removeStagingPhotos([target]);
+      const next = current.filter((photo) => photo.clientId !== clientId);
+      setPrimaryClientId((primary) =>
+        primary === clientId ? (next[0]?.clientId ?? null) : primary,
       );
+      if (next.length === 0) setStep("select");
+      return next;
+    });
+    setFailedClientIds((current) => current.filter((id) => id !== clientId));
+  }, []);
+
+  function handleSelectFiles(files: File[]) {
+    if (files.length === 0) return;
+
+    const room = MAX_IDENTIFY_IMAGES - photos.length;
+    if (room <= 0) {
+      toast.warning(t("identify.photoLimit"));
       return;
     }
-    void removeStagingPhoto(staging);
-    setStaging(null);
-    if (previewUrl && !staging) URL.revokeObjectURL(previewUrl);
-    setFile(nextFile);
-    setPreviewUrl(URL.createObjectURL(nextFile));
+
+    const accepted: StagedPhoto[] = [];
+    let typeError = false;
+    let sizeError = false;
+
+    for (const file of files) {
+      if (accepted.length >= room) break;
+      const validation = validateIdentifyFile(file);
+      if (validation === "type") {
+        typeError = true;
+        continue;
+      }
+      if (validation === "size") {
+        sizeError = true;
+        continue;
+      }
+      accepted.push(createStagedPhoto(file));
+    }
+
+    if (typeError) toast.error(t("identify.fileTypeError"));
+    if (sizeError) toast.error(t("identify.fileSizeError"));
+    if (files.length > room) toast.warning(t("identify.photoLimit"));
+    if (accepted.length === 0) return;
+
+    setPhotos((current) => {
+      const next = [...current, ...accepted];
+      setPrimaryClientId((primary) => primary ?? next[0]?.clientId ?? null);
+      return next;
+    });
     setStep("preview");
   }
 
   async function runAnalysis() {
-    if (!activeAccountId || !file) return;
+    if (!activeAccountId || photos.length === 0) return;
+    if (isHintTooLong(hint)) return;
     setUsageWarning(false);
 
-    let current = staging;
-    try {
-      if (!current) {
-        setStep("uploading");
-        current = await uploadStagingPhoto(activeAccountId, file);
-        if (previewUrl) URL.revokeObjectURL(previewUrl);
-        setStaging(current);
-        setPreviewUrl(current.previewUrl);
+    let current = photos;
+    if (current.some((photo) => !photo.path)) {
+      setStep("uploading");
+      const uploaded = await uploadStagingPhotos(activeAccountId, current);
+      current = uploaded.photos;
+      setPhotos(uploaded.photos);
+      setFailedClientIds(uploaded.failedClientIds);
+
+      if (uploaded.failedClientIds.length > 0) {
+        toast.error(
+          uploaded.photos.some((photo) => photo.path)
+            ? t("identify.uploadPartialError")
+            : t("identify.uploadError"),
+        );
+        setStep("preview");
+        return;
       }
-    } catch (error) {
-      console.error("[identify] staging upload failed", error);
-      toast.error(t("identify.uploadError"));
+    }
+
+    const storagePaths = current
+      .map((photo) => photo.path)
+      .filter((path): path is string => Boolean(path));
+    if (storagePaths.length === 0) {
       setStep("preview");
       return;
     }
@@ -126,7 +177,8 @@ function IdentifyPlantPage() {
       const result = await identify({
         data: {
           accountId: activeAccountId,
-          storagePath: current.path,
+          storagePaths,
+          hint: hint.trim() || null,
           plantId: plantId ?? null,
           language: locale,
         },
@@ -181,7 +233,8 @@ function IdentifyPlantPage() {
             scientificName: values.scientificName.trim() || null,
           },
         });
-        await removeStagingPhoto(staging);
+        // Extra photos are analysis-only in this phase.
+        await removeStagingPhotos(photos);
         persistedRef.current = true;
         queryClient.invalidateQueries({ queryKey: plantKeys.all(activeAccountId) });
         toast.success(t("identify.applied"));
@@ -189,11 +242,18 @@ function IdentifyPlantPage() {
         return;
       }
 
-      if (!staging) throw new Error("Missing staged photo");
+      const staged = photos.filter((photo) => photo.path);
+      if (staged.length === 0) throw new Error("Missing staged photo");
+      const primaryIndex = Math.max(
+        0,
+        staged.findIndex((photo) => photo.clientId === primaryClientId),
+      );
+
       const created = await createPlant({
         data: {
           accountId: activeAccountId,
-          stagingPath: staging.path,
+          stagingPaths: staged.map((photo) => photo.path!),
+          primaryIndex,
           nickname: values.nickname.trim(),
           speciesName: values.speciesName.trim() || null,
           scientificName: values.scientificName.trim() || null,
@@ -201,11 +261,20 @@ function IdentifyPlantPage() {
       });
 
       persistedRef.current = true;
+      for (const photo of photos) URL.revokeObjectURL(photo.previewUrl);
       queryClient.invalidateQueries({ queryKey: plantKeys.all(activeAccountId) });
       queryClient.invalidateQueries({ queryKey: plantPhotoKeys.all(activeAccountId) });
-      toast.success(
-        created.photoAttached ? t("identify.created") : t("identify.createdNoPhoto"),
-      );
+
+      if (created.photosAttached === 0) {
+        toast.warning(t("identify.createdNoPhoto"));
+      } else if (created.failedPhotoCount > 0) {
+        toast.warning(
+          `${t("identify.createdPartialPhotos")} (${created.photosAttached}/${staged.length})`,
+        );
+      } else {
+        toast.success(t("identify.created"));
+      }
+
       navigate({
         to: "/plants/$plantId",
         params: { plantId: created.plantId },
@@ -223,7 +292,7 @@ function IdentifyPlantPage() {
       navigate({ to: "/plants/$plantId/edit", params: { plantId } });
       return;
     }
-    // The staged photo is kept and attached when the plant is created.
+    // The staged photos are kept and attached when the plant is created.
     goToConfirm(null);
   }
 
@@ -250,21 +319,30 @@ function IdentifyPlantPage() {
 
           {(step === "select" || step === "preview") && (
             <PhotoStep
-              previewUrl={previewUrl}
+              photos={photos}
+              primaryClientId={primaryPhoto?.clientId ?? null}
+              failedClientIds={failedClientIds}
+              hint={hint}
               busy={busy}
-              onSelectFile={handleSelectFile}
-              onRemove={() => void resetPhoto()}
+              onSelectFiles={handleSelectFiles}
+              onRemove={dropPhoto}
+              onSetPrimary={setPrimaryClientId}
+              onHintChange={setHint}
               onAnalyze={() => void runAnalysis()}
             />
           )}
 
           {(step === "uploading" || step === "analyzing") && (
-            <AnalyzingStep previewUrl={previewUrl} phase={step} />
+            <AnalyzingStep
+              previewUrl={primaryPhoto?.previewUrl ?? null}
+              photoCount={photos.length}
+              phase={step}
+            />
           )}
 
           {step === "result" && (
             <ResultStep
-              previewUrl={previewUrl}
+              previewUrl={primaryPhoto?.previewUrl ?? null}
               candidates={candidates}
               selectedIndex={selectedIndex}
               onSelect={setSelectedIndex}
@@ -277,9 +355,9 @@ function IdentifyPlantPage() {
 
           {step === "uncertain" && (
             <div className="space-y-5">
-              {previewUrl ? (
+              {primaryPhoto ? (
                 <img
-                  src={previewUrl}
+                  src={primaryPhoto.previewUrl}
                   alt={t("identify.previewAlt")}
                   className="aspect-square w-full rounded-2xl border border-border object-cover"
                 />
@@ -289,10 +367,13 @@ function IdentifyPlantPage() {
                 <p className="mt-1 text-sm text-muted-foreground">
                   {t("identify.uncertainBody")}
                 </p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {t("identify.morePhotosHint")}
+                </p>
               </div>
               <Button
                 className="h-12 w-full text-base"
-                onClick={() => void runAnalysis()}
+                onClick={() => setStep("preview")}
               >
                 {t("identify.retry")}
               </Button>

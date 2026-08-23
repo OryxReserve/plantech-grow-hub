@@ -5,17 +5,20 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { AiVisionErrorCategory, PlantIdentificationCandidate } from "@/lib/ai/vision-provider";
 
 const UUID = z.string().uuid();
+const STORAGE_PATH = z.string().min(1).max(512);
 
 const IdentifyInput = z.object({
   accountId: UUID,
-  storagePath: z.string().min(1).max(512),
+  storagePaths: z.array(STORAGE_PATH).min(1).max(3),
+  hint: z.string().max(2000).nullable().optional(),
   plantId: UUID.nullable().optional(),
   language: z.enum(["pt", "en", "es"]),
 });
 
 const CreateInput = z.object({
   accountId: UUID,
-  stagingPath: z.string().min(1).max(512),
+  stagingPaths: z.array(STORAGE_PATH).min(1).max(3),
+  primaryIndex: z.number().int().min(0).max(2),
   nickname: z.string().trim().min(1).max(120),
   speciesName: z.string().trim().max(160).nullable(),
   scientificName: z.string().trim().max(160).nullable(),
@@ -47,12 +50,14 @@ export type IdentifyPlantPhotoResult =
     };
 
 /**
- * Identifies a plant from a photo already stored in the private bucket.
+ * Identifies a plant from 1..3 photos already stored in the private bucket,
+ * in a single AI request (and therefore a single `ai_usage_log` row).
  *
  * Tenant safety: the account is resolved from the caller's active memberships
  * server-side; a client-supplied accountId is only honoured when it is part of
- * that set. A plantId, when present, must belong to the resolved account before
- * any photo bytes are read.
+ * that set. Every storage path must live under that account prefix, and a
+ * plantId, when present, must belong to the resolved account before any photo
+ * bytes are read.
  */
 export const identifyPlantPhoto = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -72,7 +77,9 @@ export const identifyPlantPhoto = createServerFn({ method: "POST" })
     const accountId = data.accountId;
 
     // The storage policy scopes objects by their first path segment.
-    if (!data.storagePath.startsWith(`${accountId}/`)) throw new Error("Forbidden");
+    for (const path of data.storagePaths) {
+      if (!path.startsWith(`${accountId}/`)) throw new Error("Forbidden");
+    }
 
     let plantContext: "new" | "existing" = "new";
     if (data.plantId) {
@@ -88,25 +95,33 @@ export const identifyPlantPhoto = createServerFn({ method: "POST" })
     }
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: blob, error: downloadError } = await supabaseAdmin.storage
-      .from(BUCKET)
-      .download(data.storagePath);
-    if (downloadError || !blob) throw new Error("Photo not available");
+    const downloads = await Promise.all(
+      data.storagePaths.map((path) => supabaseAdmin.storage.from(BUCKET).download(path)),
+    );
 
-    const bytes = Buffer.from(await blob.arrayBuffer());
-    if (bytes.byteLength === 0) throw new Error("Photo is empty");
-    const mimeType = blob.type && blob.type.startsWith("image/") ? blob.type : "image/jpeg";
+    const images: { imageBase64: string; mimeType: string }[] = [];
+    for (const download of downloads) {
+      if (download.error || !download.data) throw new Error("Photo not available");
+      const bytes = Buffer.from(await download.data.arrayBuffer());
+      if (bytes.byteLength === 0) throw new Error("Photo is empty");
+      const blobType = download.data.type;
+      images.push({
+        imageBase64: bytes.toString("base64"),
+        mimeType: blobType && blobType.startsWith("image/") ? blobType : "image/jpeg",
+      });
+    }
 
     const { getVisionProvider } = await import("@/lib/ai/provider-registry.server");
     const { logAiUsage } = await import("@/lib/ai/usage-log.server");
-    const { AiVisionError } = await import("@/lib/ai/vision-provider");
+    const { AiVisionError, normalizeHint } = await import("@/lib/ai/vision-provider");
     const provider = getVisionProvider();
+    const hint = normalizeHint(data.hint ?? null);
     const startedAt = Date.now();
 
     try {
       const result = await provider.identifyPlant({
-        imageBase64: bytes.toString("base64"),
-        mimeType,
+        images,
+        hint,
         language: data.language,
       });
 
@@ -126,6 +141,8 @@ export const identifyPlantPhoto = createServerFn({ method: "POST" })
           is_plant: result.isPlant,
           usage_reported: result.usage.usageReported,
           plant_context: plantContext,
+          image_count: images.length,
+          hint_provided: hint !== null,
         },
       });
 
@@ -152,7 +169,12 @@ export const identifyPlantPhoto = createServerFn({ method: "POST" })
         tokensOut: 0,
         latencyMs: Date.now() - startedAt,
         costUsd: null,
-        payload: { error_category: category, plant_context: plantContext },
+        payload: {
+          error_category: category,
+          plant_context: plantContext,
+          image_count: images.length,
+          hint_provided: hint !== null,
+        },
       });
 
       return { ok: false, errorCategory: category, retryable, usageLogged };
@@ -161,13 +183,18 @@ export const identifyPlantPhoto = createServerFn({ method: "POST" })
 
 export type CreatePlantFromIdentificationResult = {
   plantId: string;
-  photoAttached: boolean;
+  photosAttached: number;
+  failedPhotoCount: number;
+  failedPhotoIndexes: number[];
 };
 
 /**
- * Creates the plant, then promotes the staging photo to the plant folder.
- * The `plant_photos` row is only written after the plant exists, and a failed
- * promotion never leaves a copied object behind.
+ * Creates the plant, then promotes every staged photo to the plant folder.
+ *
+ * Each photo is promoted independently: a failure only drops that photo, never
+ * the plant. A copied object whose metadata insert fails is removed again, so
+ * the bucket keeps no orphans. Exactly one attached photo ends as primary — the
+ * user's choice when it survived, otherwise the first photo that did.
  */
 export const createPlantFromIdentification = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -185,7 +212,11 @@ export const createPlantFromIdentification = createServerFn({ method: "POST" })
       throw new Error("Forbidden");
     }
     const accountId = data.accountId;
-    if (!data.stagingPath.startsWith(`${accountId}/_staging/`)) throw new Error("Forbidden");
+    for (const path of data.stagingPaths) {
+      if (!path.startsWith(`${accountId}/_staging/`)) throw new Error("Forbidden");
+    }
+    const primaryIndex =
+      data.primaryIndex < data.stagingPaths.length ? data.primaryIndex : 0;
 
     const { data: plant, error: plantError } = await supabase
       .from("plants")
@@ -200,34 +231,61 @@ export const createPlantFromIdentification = createServerFn({ method: "POST" })
       .single();
     if (plantError || !plant) throw new Error("Could not create plant");
 
-    const fileName = data.stagingPath.split("/").pop()!;
-    const finalPath = `${accountId}/${plant.id}/${fileName}`;
+    // Promote the user's primary first so it keeps the flag whenever it works.
+    const order = [
+      primaryIndex,
+      ...data.stagingPaths.map((_, index) => index).filter((i) => i !== primaryIndex),
+    ];
 
-    const { error: copyError } = await supabase.storage
-      .from(BUCKET)
-      .copy(data.stagingPath, finalPath);
-    if (copyError) {
-      console.error("[identify] photo copy failed", copyError.message);
-      return { plantId: plant.id, photoAttached: false };
+    const failedPhotoIndexes: number[] = [];
+    const promotedPaths: string[] = [];
+    let attached = 0;
+
+    for (const index of order) {
+      const stagingPath = data.stagingPaths[index]!;
+      const fileName = stagingPath.split("/").pop()!;
+      const finalPath = `${accountId}/${plant.id}/${fileName}`;
+
+      const { error: copyError } = await supabase.storage
+        .from(BUCKET)
+        .copy(stagingPath, finalPath);
+      if (copyError) {
+        console.error("[identify] photo copy failed", index, copyError.message);
+        failedPhotoIndexes.push(index);
+        continue;
+      }
+
+      const { error: photoError } = await supabase.from("plant_photos").insert({
+        account_id: accountId,
+        plant_id: plant.id,
+        storage_path: finalPath,
+        // The first successful insert owns the primary flag.
+        is_primary: attached === 0,
+        uploaded_by: userId,
+      });
+
+      if (photoError) {
+        // Roll the copy back so the bucket keeps no orphan object.
+        await supabase.storage.from(BUCKET).remove([finalPath]);
+        console.error("[identify] photo metadata insert failed", index, photoError.message);
+        failedPhotoIndexes.push(index);
+        continue;
+      }
+
+      attached += 1;
+      promotedPaths.push(stagingPath);
     }
 
-    const { error: photoError } = await supabase.from("plant_photos").insert({
-      account_id: accountId,
-      plant_id: plant.id,
-      storage_path: finalPath,
-      is_primary: true,
-      uploaded_by: userId,
-    });
-
-    if (photoError) {
-      // Roll the copy back so the bucket keeps no orphan object.
-      await supabase.storage.from(BUCKET).remove([finalPath]);
-      console.error("[identify] photo metadata insert failed", photoError.message);
-      return { plantId: plant.id, photoAttached: false };
+    if (promotedPaths.length > 0) {
+      await supabase.storage.from(BUCKET).remove(promotedPaths);
     }
 
-    await supabase.storage.from(BUCKET).remove([data.stagingPath]);
-    return { plantId: plant.id, photoAttached: true };
+    return {
+      plantId: plant.id,
+      photosAttached: attached,
+      failedPhotoCount: failedPhotoIndexes.length,
+      failedPhotoIndexes: failedPhotoIndexes.sort((a, b) => a - b),
+    };
   });
 
 /** Applies a confirmed identification to an existing plant of the same account. */
