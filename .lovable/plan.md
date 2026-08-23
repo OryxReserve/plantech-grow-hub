@@ -1,66 +1,59 @@
-# Fase 1.2 — Aceitação de resultados prováveis na identificação
+# Fase 1.2 — QA dirigido pós-BUILD
 
-Objetivo: parar de mandar identificações úteis (ex.: oliveira / *Olea europaea*) para a tela "Sem identificação confiável". Sem mudança de schema, sem chamada extra de IA, sem API externa.
+Revisão apenas de leitura dos quatro arquivos do escopo. Resultado: **implementação consistente em 5 dos 6 itens do checklist; há 1 gap real (item 2, `isPlant === false`) e 2 edge cases menores.**
 
-## 1. Arquivos a alterar
+## 1. Candidato útil — OK
 
-- `src/lib/ai/lovable-vision.server.ts` — prompt e mapeamento do resultado
-- `src/routes/_authenticated/plants.identify.tsx` — regra de decisão do passo final
-- `src/components/plants/identify/result-step.tsx` — hierarquia visual (provável x amplo)
-- `src/i18n/translations.ts` — ajustes de copy (pt/en/es)
+Regra aplicada em dois pontos, coerentes entre si:
+- Provider (`mapCandidates`): filtra por `commonName || scientificName` após `trim`, com `commonName` normalizado para `""` e `scientificName` para `null`.
+- Rota (`runAnalysis`): re-filtra por `commonName?.trim() || scientificName?.trim()`.
 
-Nada muda em storage, staging, RLS, `ai_usage_log` ou criação de planta.
+Nenhum outro atributo (confiança, rank, `broadOnly`, `note`) participa do descarte.
 
-## 2. Origem da rigidez (confirmado no código)
+## 2. Roteamento final — GAP REAL
 
-1. **Prompt induz a recusa.** `buildPrompt` instrui literalmente: "Return an empty candidates array when you cannot identify the plant with reasonable certainty" e "Never claim a cultivar without clear visual evidence". A primeira frase transforma incerteza em silêncio: o modelo prefere devolver zero candidatos a devolver "provavelmente *Olea europaea*, faltam detalhes da folha".
-2. **Fallback de parser vira fracasso.** Em `NoObjectGeneratedError` o adapter retorna `candidates: []`. Se o modelo escreveu uma hipótese, mas fora do schema, o texto é descartado.
-3. **Decisão binária na UI.** Em `plants.identify.tsx`, `result.candidates.length === 0` → passo `uncertain`. Não existe nível intermediário; qualquer coisa que zere a lista cai na tela de erro.
-4. **Filtro de saneamento.** O `.filter(c => c.commonName?.trim())` descarta candidato que traz só `scientificName` (caso comum quando o modelo é cauteloso com nome popular).
+- Lista com ≥1 candidato útil vai para `result`: OK.
+- `broadOnly`, `rank` e `confidence: null` não derrubam para `uncertain`: OK (não são lidos na decisão).
+- **`isPlant === false` não existe como fluxo próprio.** O provider retorna `isPlant`, a server function o repassa (`plant-identification.functions.ts`), mas `plants.identify.tsx` nunca lê `result.isPlant`. Consequências:
+  - Foto sem planta hoje só cai em `uncertain` por efeito colateral de a lista vir vazia, com copy genérica ("Sem identificação confiável" / "tente outra foto"), não "isto não parece uma planta".
+  - Se o modelo marcar `isPlant: false` e ainda assim devolver algum candidato (possível: o schema permite), a tela mostra `result` com hipótese botânica sobre uma foto não vegetal.
 
-Não confirmado como causa: `confidence` nula, `broadOnly` e `rank` **não** derrubam candidato hoje — nenhum código filtra por eles. A causa real é prompt + lista vazia + filtro de nome comum.
+Correção mínima sugerida (sem schema novo, sem IA extra): na rota, tratar `result.isPlant === false` antes do cálculo de `useful` — descartar candidatos e ir para `uncertain` usando um par de chaves de copy específicas (`identify.notPlantTitle` / `identify.notPlantBody`) nas três línguas.
 
-## 3. Regra mínima de aceitação
+## 3. Fallback visual e confirmação — OK
 
-Um candidato é **útil** quando tem `commonName` OU `scientificName` não vazio. Nada além disso.
+- `result-step.tsx`: `primaryLabel = commonName || scientificName`; `secondaryLabel` só aparece quando o científico difere do rótulo primário, portanto candidato só-científico não duplica a linha.
+- `goToConfirm`: mesmo fallback; `scientificName` preenchido com `""` quando ausente. Não há acesso não guardado — não quebra com apenas um dos nomes.
+- Edge case menor: quando existe só `scientificName`, ele é copiado para `nickname` e `speciesName`. É aceitável e editável, mas o apelido nasce em latim. Não é bug.
 
-- lista útil não vazia → tela de resultado (`result`), sempre
-- `broadOnly = true` → resultado válido, com aviso de amplitude
-- `rank = genus` ou `species` → nunca rebaixa para falha
-- `uncertain` só quando não sobra nenhum candidato útil
-- `isPlant = false` continua sendo o único "não é planta" e mantém a tela atual
+## 4. Identificação ampla — OK
 
-Quando faltar `commonName`, usar o `scientificName` como rótulo principal (e vice-versa) em vez de descartar.
+- `broad = broadOnly || rank === "genus"`, mesma tela `result`.
+- Sinalização dupla: bloco de nota `identify.genusOnlyNote` + badge `identify.broadBadge` (presente em pt/en/es).
+- `broadOnly` também é inferido no provider quando o modelo omite o campo e o rank é `genus`.
+- Edição manual continua disponível pelo botão `identify.rejectAll` → `handleManualFallback`.
 
-## 4. Ajustes de prompt/provider
+## 5. Fallback de parse (`NoObjectGeneratedError`) — OK
 
-Em `buildPrompt`:
+- `salvageCandidates` extrai do primeiro `{` ao último `}`, faz `JSON.parse` dentro de `try/catch` e valida com `ResultSchema.partial()`. Texto solto ou prosa não vira candidato: sem `{...}` válido → `[]`.
+- Não há segunda chamada de IA; o caminho é puramente local.
+- Sem JSON aproveitável → `candidates: []` → a rota cai em `uncertain`. Conservador, como pedido.
+- Risco de "lixo textual" é baixo: qualquer candidato salvo ainda precisa passar por `mapCandidates` (nome não vazio) e o Zod rejeita tipos errados.
+- Edge case menor: o retorno de salvamento fixa `isPlant: true` e `usage` zerada. Aceitável, mas significa que um salvamento nunca poderá acionar o fluxo "não é planta" do item 2, e o `ai_usage_log` registra 0 tokens nesse caminho (já era assim na Fase 1).
 
-- remover a instrução de devolver lista vazia por falta de certeza
-- passar a exigir: sempre devolver a melhor hipótese botânica plausível, com a incerteza explícita no `note`
-- lista vazia só é permitida quando não há evidência botânica alguma (foto não mostra planta ou é inutilizável)
-- manter a postura anti-alucinação: sem cultivar inventada, sem `confidence` numérica fabricada (continua `null` quando não houver estimativa real), sem nome científico chutado
-- pedir que o `note` diga, em uma frase, que evidência adicional aumentaria a certeza (folha em detalhe, flor, fruto, casca, planta inteira)
-- reforçar preferência por responder em gênero/espécie com `broadOnly = true` em vez de não responder
+## 6. QA por cenários (validação lógica)
 
-No mapeamento: aceitar candidato com apenas um dos nomes; manter `rank` default `species` e `broadOnly` default por `rank === "genus"`.
-
-## 5. Hierarquia de estados na UI
-
-| Caso | Estado | Tela |
+| Cenário | Resultado esperado | Hoje |
 | --- | --- | --- |
-| Espécie/cultivar provável | sucesso | `result`, aviso padrão de incerteza |
-| Gênero ou espécie com `broadOnly` | sucesso | mesma tela `result`, com destaque "identificação ampla" e o que falta na foto |
-| Nenhum candidato útil | falha | `uncertain` |
+| Espécie provável com nome popular + científico | `result`, rótulo popular, científico em itálico | OK |
+| Espécie provável só com científico | `result`, científico como rótulo, sem linha duplicada | OK |
+| Resultado amplo por gênero | `result` + badge "Identificação ampla" + nota | OK |
+| Não planta (lista vazia) | mensagem clara de "não é planta" | Parcial — cai em `uncertain` com copy genérica |
+| Não planta com candidato devolvido | não mostrar hipótese | **Falha** — vai para `result` |
+| Texto malformado sem JSON útil | `uncertain` | OK |
 
-- edição manual continua disponível em todos os casos (botões atuais preservados)
-- `broadOnly` deixa de ser tratado como beco sem saída — nenhum roteamento novo, só a regra do item 3
-- copy de resultado passa a "identificações prováveis", nunca afirmação categórica
+## Conclusão
 
-## 6. Logging e segurança
+Único ajuste que vale um BUILD cirúrgico: consumir `result.isPlant` na rota e adicionar a copy de "não é planta" em pt/en/es. Os demais itens do checklist estão cobertos; os dois edge cases apontados são cosméticos e não exigem mudança.
 
-Sem campo novo, sem requisição extra, uma linha por request em `ai_usage_log` como hoje. Staging, RLS e ciclo de criação de planta intactos.
-
-## 7. Recomendação
-
-Seguro para um BUILD pequeno: quatro arquivos, mudanças de prompt, de uma condição de estado e de copy. Sem migração, sem novo endpoint.
+Arquivos afetados por esse ajuste: `src/routes/_authenticated/plants.identify.tsx`, `src/i18n/translations.ts`. Sem schema novo, sem chamada extra de IA, sem refactor.
