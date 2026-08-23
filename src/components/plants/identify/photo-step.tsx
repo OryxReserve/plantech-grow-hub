@@ -20,6 +20,7 @@ export function PhotoStep({
 }) {
   const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
 
   return (
     <div className="space-y-5">
@@ -29,9 +30,22 @@ export function PhotoStep({
         ref={inputRef}
         type="file"
         accept={IDENTIFY_ACCEPTED_TYPES.join(",")}
-        capture="environment"
         className="sr-only"
         aria-label={t("identify.choosePhoto")}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+          if (file) onSelectFile(file);
+        }}
+      />
+
+      <input
+        ref={cameraRef}
+        type="file"
+        accept={IDENTIFY_ACCEPTED_TYPES.join(",")}
+        capture="environment"
+        className="sr-only"
+        aria-label={t("identify.takePhoto")}
         onChange={(event) => {
           const file = event.target.files?.[0];
           event.target.value = "";
