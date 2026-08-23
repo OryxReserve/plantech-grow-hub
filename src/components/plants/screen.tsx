@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, type LinkProps } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -11,7 +11,7 @@ export function PlantScreen({
   children,
 }: {
   title: string;
-  backTo: string;
+  backTo: LinkProps["to"];
   backLabel: string;
   action?: ReactNode;
   children: ReactNode;
