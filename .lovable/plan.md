@@ -1,54 +1,85 @@
-# Diagnóstico — seletor de idioma
+# Plano — dois novos padrões de UI no design system Plantech
 
-## Resumo
+Escopo: apenas os dois componentes genéricos (expansão de card e card de formulário). Sem schema, sem IA, sem mexer em identificação/staging nem nas regras de validação do formulário de cuidado.
 
-O mecanismo de i18n **funciona** na tela onde o seletor existe. Verifiquei ao vivo no preview: cliquei em `en` na landing e o título mudou de "Seu jardim, organizado." para "Your garden, organized.", `document.documentElement.lang` virou `en` e `localStorage["plantech.locale"]` gravou `en`.
+## 1. ExpandablePlantDetail
 
-O que está de fato quebrado é a **cobertura e a persistência** do seletor, não o `t()`.
+Arquivos a criar:
+- `src/components/ui/expandable-card.tsx` — primitivo genérico: `ExpandableCardProvider` não é necessário; exporta `ExpandableCard` (gatilho colapsado) e `ExpandableCardContent` (estado expandido em portal), com transição compartilhada por `layoutId`, overlay com blur, botão de fechar com rotação, Escape e clique fora.
+- `src/components/plants/expandable-plant-detail.tsx` — wrapper de produto: recebe foto, título, subtítulo, slot de badge (ex.: status de saúde) e `children` livres.
 
-## Respostas às perguntas
+Arquivos a modificar (integração mínima, uma tela de referência):
+- `src/routes/_authenticated/plants.index.tsx` — cada item da lista vira gatilho expansível para o resumo da planta (navegação para a rota de perfil continua disponível dentro do conteúdo expandido).
+- `src/i18n/translations.ts` — chaves `expandable.close` etc. nos três idiomas.
 
-1. **Onde fica o estado do idioma?**
-   React Context em `src/i18n/i18n.tsx` (`I18nProvider`, `useState<Locale>`), montado uma vez em `src/routes/__root.tsx`. Persistência em `localStorage` sob a chave `plantech.locale`. Não há parâmetro de URL nem Zustand. O SSR sempre renderiza `pt` (default) e o valor salvo/idioma do navegador é aplicado depois da hidratação, via `useEffect`, para evitar hydration mismatch.
+Comportamento:
+- Mobile (<768px): expande para folha quase fullscreen, cantos superiores arredondados, conteúdo rolável com `overscroll-contain`.
+- Desktop: card centralizado com largura máxima.
+- Cores só por tokens (`bg-card`, `bg-background/80`, `text-muted-foreground`, `border-border`, `--radius`); nenhum `zinc-*`/`gray-*`.
+- Overlay em `z-50` (mesmo nível de Dialog/Sheet) — Sonner renderiza acima disso por padrão, então não há conflito de empilhamento com os toasts.
+- `useReducedMotion` respeitado: sem `layout` animation quando o usuário pede movimento reduzido.
 
-2. **Componente do seletor:** `src/components/language-switcher.tsx`. É usado em apenas 3 telas: `src/routes/index.tsx`, `src/routes/auth.tsx` e `src/routes/_authenticated/app.tsx`.
+## 2. PlantFormCard
 
-3. **Como o `t()` recebe o locale:** por hook/contexto — `useI18n()` devolve `{ locale, setLocale, t }`; `t` é recriado via `useMemo` sempre que `locale` muda e chama `translate(locale, key)` em `src/i18n/translations.ts`.
+Arquivos a criar:
+- `src/components/ui/form-card.tsx` — casca genérica: `FormCard`, `FormCardHeader` (imagem/ícone opcional + título + subtítulo), `FormCardRow`, `FormCardFooter`, com entrada em fade escalonado controlada por prop `animate` (padrão `true`, desligada onde o form reabre com frequência).
+- `src/components/plants/plant-form-card.tsx` — composição de produto: cabeçalho, bloco opcional de upload de foto, área de campos (`children`) e botão primário com estado de carregamento.
+- `src/components/plants/photo-upload-row.tsx` — linha de upload que **apenas** consome as funções já existentes em `src/lib/plant-identification.ts` (`validateIdentifyFile`, `createStagedPhoto`, `uploadStagingPhotos`, `removeStagingPhotos`). Nenhum mecanismo novo de upload.
 
-4. **Fluxo ao trocar idioma:**
-   clique no botão → `setLocale(code)` → `setLocaleState` + gravação no `localStorage` → o `useMemo` do provider gera um novo `value` (nova função `t`) → todos os consumidores de `useI18n()` re-renderizam → `useEffect` atualiza `document.documentElement.lang`. Confirmado funcionando no preview.
+Arquivos a modificar (adoção visual, sem tocar em lógica):
+- `src/components/plants/plant-form.tsx` — envolve o form atual no `PlantFormCard`; estado, `nullable()`, mensagem inline de apelido e foco no primeiro inválido permanecem idênticos.
+- `src/components/plants/profile/care-profile-sheet.tsx` e `plant-context-sheet.tsx` — trocam só a estrutura visual pela do `FormCard` com `animate={false}` (reabrem com frequência); validação de intervalos (inteiro 1–3650), foco/scroll no primeiro campo inválido e toasts continuam exatamente como estão.
+- `src/i18n/translations.ts` — chaves de upload/rótulos que ainda faltem.
 
-5. **Erros no console:** nenhum erro relacionado à troca de idioma na execução ao vivo; a troca respondeu normalmente.
+Campos de texto livre (tipo de fertilizante, notas de luz e rega) seguem sem restrição.
 
-6. **Estrutura das chaves:** correta e completa nos 3 idiomas — 279 chaves em `pt`, 279 em `en`, 279 em `es`, sem nenhuma faltando. Estrutura plana com chaves em string (`"landing.heading"`, `"auth.signIn"`...), `TranslationKey` derivado de `en`, e fallback `dictionaries[locale][key] ?? dictionaries.en[key] ?? key`.
+## 3. Dependências
 
-Primeiras linhas de `src/i18n/translations.ts`:
+- `framer-motion` **não** está instalado. Instalar `motion` (pacote atual da Framer Motion v11+, import `motion/react`), única adição. Nada de ícones sociais, botões de auth ou assets das demos originais.
+- shadcn `Button`, `Input`, `Label`, `Textarea` já existem — reutilizados, sem reinstalar.
 
-```text
-export const LOCALES = ["pt", "en", "es"] as const;
-export type Locale = (typeof LOCALES)[number];
+## 4. Conflitos verificados
 
-export const LOCALE_LABELS: Record<Locale, string> = {
-  pt: "Português",
-  en: "English",
-  es: "Español",
+- **Toasts (Sonner)**: o `<Toaster />` do Sonner usa z-index próprio bem acima de 50; o overlay expansível fica em `z-50`. Sem sobreposição indevida.
+- **Dialog/Sheet existentes**: o card expansível é independente do Radix Dialog para permitir `layoutId`; foco é gerenciado manualmente (foco inicial no botão de fechar, restauração ao fechar) e `aria-modal` aplicado. Nunca abrir os dois simultaneamente na mesma tela.
+- **Upload/staging**: reutilização direta das funções existentes; nenhuma alteração em promoção de fotos, provider de IA ou `ai_usage_log`.
+- **Validação de cuidado**: alteração puramente de casca; nenhuma regra de validação movida ou reescrita.
+
+## 5. Interfaces propostas
+
+```ts
+type ExpandablePlantDetailProps = {
+  id: string;                    // base do layoutId
+  title: string;
+  subtitle?: string;
+  imageUrl?: string | null;
+  badge?: React.ReactNode;       // ex.: <HealthBadge />
+  trigger: React.ReactNode;      // conteúdo do card colapsado
+  children: React.ReactNode;     // conteúdo expandido rolável
+  footer?: React.ReactNode;
+  open?: boolean;                // opcionalmente controlado
+  onOpenChange?: (open: boolean) => void;
 };
 
-const dictionaries = {
-  pt: {
-    "app.name": "Plantech",
-    "app.tagline": "Cuide das suas plantas com método.",
-    ...
+type PlantFormCardProps = {
+  title: string;
+  subtitle?: string;
+  media?: React.ReactNode;       // imagem/ícone do topo
+  animate?: boolean;             // padrão true; false em sheets recorrentes
+  photoUpload?: {
+    label: string;
+    photos: StagedPhoto[];       // tipo de @/lib/plant-identification
+    onChange: (photos: StagedPhoto[]) => void;
+    max?: number;
+  };
+  submitLabel: string;
+  isSubmitting?: boolean;
+  onSubmit: () => void;
+  onCancel?: () => void;
+  children: React.ReactNode;     // campos
+};
 ```
 
-## Causas prováveis do "não funciona" percebido
+## 6. Segurança do BUILD
 
-- **Seletor ausente na maior parte do app.** Nenhuma tela de plantas (lista, detalhe, novo, editar, identificação) renderiza o `LanguageSwitcher`. Quem está dentro do fluxo de plantas não tem como trocar idioma.
-- **Sem persistência por usuário.** `preferred_language` é gravado no cadastro, mas nunca é lido para inicializar o locale nem atualizado quando o usuário troca. Em outro navegador/dispositivo o app volta para `pt`.
-- **Conteúdo fora do dicionário permanece em português.** Títulos/descrições de `head()` (`__root`, `index`, `auth`) são strings fixas em pt-BR; textos vindos do banco (guia de cuidado por espécie, notas da IA) são gerados por idioma e só mudam quando existe cache no idioma novo.
-- **Flash inicial em pt.** Em recarga dura, o primeiro frame vem em `pt` até o `useEffect` de hidratação aplicar o idioma salvo.
-
-## Perguntas antes de corrigir
-
-- Em qual tela exatamente você viu a troca sem efeito? (Isso confirma se é a ausência do seletor ou outra coisa.)
-- O idioma deve ficar salvo no perfil do usuário (server-side) além do navegador?
+Sim, é um BUILD pequeno e contido: 5 arquivos novos, 5 modificados, 1 dependência (`motion`), zero mudança de banco, de isolamento por `account_id`, de IA ou de regras de validação.
