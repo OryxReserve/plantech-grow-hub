@@ -1,62 +1,95 @@
-# Fase 1 — Relatório de validação (sem novas features)
+# Fase 1.1 — Precisão da identificação (1–3 fotos + dica opcional)
 
-## 1. Arquivos criados/alterados
+Melhoria mínima e segura sobre a Fase 1: mais contexto para o modelo, sem prometer certeza de cultivar. Sem migração de schema, sem novas features de Fase 2, sem chamada extra de IA por imagem (continua **1 request = 1 linha em `ai_usage_log`**).
 
-Criados:
-- `src/lib/ai/vision-provider.ts` — contrato tipado `AiVisionProvider`, categorias de erro, `MAX_CANDIDATES`, tipos aceitos.
-- `src/lib/ai/ai-gateway.server.ts` — provider do Lovable AI Gateway (header `Lovable-API-Key`, captura do run id).
-- `src/lib/ai/lovable-vision.server.ts` — adaptador real (`google/gemini-3-pro`), prompt por idioma, timeout de 45s, mapeamento de erros.
-- `src/lib/ai/logorion.server.ts` — stub isolado do futuro adaptador.
-- `src/lib/ai/provider-registry.server.ts` — seleção do provider ativo.
-- `src/lib/ai/usage-log.server.ts` — escrita de `ai_usage_log` via service role.
-- `src/lib/plant-identification.functions.ts` — `identifyPlantPhoto`, `createPlantFromIdentification`, `applyIdentificationToPlant`.
-- `src/lib/plant-identification.ts` — validação de arquivo e ciclo de vida do staging no cliente.
-- `src/routes/_authenticated/plants.identify.tsx` — máquina de estados do fluxo.
-- `src/components/plants/identify/` — `photo-step.tsx`, `analyzing-step.tsx`, `result-step.tsx`, `error-step.tsx`, `confirm-step.tsx`.
+## 1. Arquivos a alterar
 
-Alterados:
-- `src/i18n/translations.ts` — chaves `identify.*` em pt/en/es.
-- `src/routes/_authenticated/app.tsx`, `plants.index.tsx`, `plants.$plantId.index.tsx` — pontos de entrada.
-- `src/lib/plant-photos.ts` — `extensionFor` compartilhado com o staging.
-- `package.json` — `ai`, `@ai-sdk/openai-compatible`.
+Contrato e provider:
+- `src/lib/ai/vision-provider.ts` — `IdentifyPlantInput` passa a `{ images: {imageBase64, mimeType}[], hint?: string | null, language }`; novos campos no candidato: `rank` ("species" | "genus" | "cultivar") e `broadOnly`/nota; `MAX_IDENTIFY_IMAGES = 3`, `MAX_HINT_LENGTH = 280`.
+- `src/lib/ai/lovable-vision.server.ts` — monta N blocos de imagem numa única mensagem, injeta a dica como contexto de apoio, ajusta prompt e timeout.
+- `src/lib/ai/logorion.server.ts` — só ajusta a assinatura do stub (segue inativo).
 
-## 2. Limpeza do staging
+Servidor:
+- `src/lib/plant-identification.functions.ts` — `identifyPlantPhoto` aceita `storagePaths: string[]` (1..3) + `hint`; valida cada path com o prefixo da conta; baixa as imagens em paralelo; `createPlantFromIdentification` aceita `stagingPaths: string[]` + `primaryIndex`.
+- `src/lib/ai/usage-log.server.ts` — payload ganha `image_count` e `hint_provided` (booleano; o texto da dica **não** é gravado).
 
-Caminho do objeto temporário: `{account_id}/_staging/{uuid}.{ext}` (a política de storage valida o primeiro segmento = conta).
+Cliente:
+- `src/lib/plant-identification.ts` — helpers para lista de staging (`uploadStagingPhotos`, `removeStagingPhotos`), validação de limite e de dica.
+- `src/routes/_authenticated/plants.identify.tsx` — estado passa de foto única para array + `primaryIndex` + `hint`.
+- `src/components/plants/identify/photo-step.tsx` — tira de miniaturas, adicionar/remover, marcar principal, campo de dica.
+- `src/components/plants/identify/analyzing-step.tsx`, `result-step.tsx` — mostram a primeira/principal imagem e a linguagem de incerteza.
+- `src/i18n/translations.ts` — novas chaves pt/en/es.
 
-Pontos de limpeza:
-- Troca de foto (`handleSelectFile`) e "trocar foto" (`resetPhoto`): remove o objeto anterior.
-- Desmontagem da rota (`useEffect` de cleanup com `stagingRef`): remove se `persistedRef` for falso — cobre navegação/abandono no meio do fluxo.
-- Planta existente: após `applyIdentificationToPlant`, o staging é removido (a foto não é anexada nesse caminho) e `persistedRef` vira true.
-- Planta nova: o servidor copia staging → `{account}/{plantId}/{arquivo}` e só então remove o staging; se o insert em `plant_photos` falhar, a cópia é revertida (`remove([finalPath])`) e retorna `photoAttached: false`.
-- Toda remoção é best-effort: falha só gera `console.error`, nunca bloqueia o usuário.
+Inalterados: RLS, políticas de storage, `auth-middleware`, `plant-photos.ts` (reutilizado), `applyIdentificationToPlant`.
 
-Lacuna conhecida: fechar a aba/matar o app durante a análise não dispara o cleanup (não há `beforeunload` nem job de varredura). O objeto órfão fica no bucket, isolado por conta.
+### Respostas técnicas pedidas
+- **Múltiplas imagens num request**: sim. O gateway aceita vários blocos de mídia na mesma mensagem `user`. Hoje enviamos um bloco `file` com `mediaType`; a mudança é apenas repetir o bloco por imagem, mantendo uma só chamada. Como as fotos vêm em base64 (bytes baixados do bucket privado), não caímos no limite de "imagens por link".
+- **Structured output**: continua adequado — mesmo schema raiz, apenas campos novos e todos obrigatórios/nullable (nada de `.optional()`, sem `min/max`), preservando o guard `NoObjectGeneratedError`.
+- **Timeout**: 45 s fica curto com 3 imagens + raciocínio. Proposta: 75 s e chamada em streaming consumida no servidor (`streamText` + `await result.output`) para não ficar em silêncio de rede em requisições longas. `maxRetries: 0` permanece (evita cobrança dupla).
 
-## 3. Comportamento do `ai_usage_log`
+## 2. Fluxo de dados e limpeza
 
-`ai_usage_log` nega INSERT a `authenticated`; a escrita ocorre só no servidor com service role.
+Staging continua em `{account_id}/_staging/{uuid}.{ext}` — um objeto por foto; a política de storage segue validando o primeiro segmento, então o isolamento por conta é preservado sem mudanças.
 
-- Sucesso do provider + log ok: 1 linha `status='success'` com provider, model, tokens, `latency_ms`, `cost_usd` (null) e payload `{request_id, candidate_count, is_plant, usage_reported, plant_context}`. Resposta traz `usageLogged: true`.
-- Sucesso do provider + falha do log: `logAiUsage` captura o erro, loga no servidor e retorna `false`; o resultado da IA é entregue normalmente com `usageLogged: false`, e a UI mostra aviso de auditoria (`usageWarning`). Nada é revertido.
-- Erro do provider: 1 linha `status='error'`, tokens 0, `model: null`, payload `{error_category, plant_context}`; a server function retorna `{ok:false, errorCategory, retryable}` em vez de lançar. Erros anteriores ao provider (conta/planta inválida, foto ausente) lançam e não geram linha de log.
+Planta nova:
+1. Usuário escolhe 1–3 fotos; upload em staging (sequencial, com estado por item).
+2. Análise: uma chamada com todas as imagens + dica.
+3. Confirmação: `createPlantFromIdentification` recebe `stagingPaths` na ordem exibida e `primaryIndex`; cria a planta, promove cada objeto para `{account}/{plantId}/{arquivo}` e insere as linhas em `plant_photos` com `is_primary = true` apenas no índice escolhido.
+4. Staging só é removido depois da promoção bem-sucedida de cada arquivo.
 
-Payload é serializado e truncado para `{truncated:true}` acima de 3500 bytes (trigger rejeita >4096).
+Planta existente: as fotos servem **só** para análise; após `applyIdentificationToPlant`, todo o staging é removido. Sem anexar à galeria nesta fase (mantém o slice mínimo).
 
-## 4. Ausência de token usage
+Limpeza por cenário:
+- Remover uma foto na UI → remove aquele objeto do staging.
+- Cancelar/voltar/desmontar sem persistir → o cleanup de unmount remove todos os objetos do array (mesmo padrão `stagingRef`/`persistedRef` de hoje, aplicado à lista).
+- Falha parcial de upload → as que subiram continuam válidas; o item que falhou aparece com erro e opção "tentar de novo"; nada bloqueia a análise das demais (mínimo 1).
+- Falha de promoção no servidor → por foto: se a cópia falhar, pula aquela foto; se o insert em `plant_photos` falhar, a cópia é revertida. A planta é criada mesmo assim e o retorno informa `photosAttached: n` de `n` enviadas, com aviso na UI.
+- Garantia de "exatamente um primary": se a foto escolhida como principal falhar na promoção, a primeira foto anexada com sucesso assume `is_primary`; se nenhuma anexar, nenhuma linha é criada.
 
-Quando o gateway não reporta tokens, gravamos `tokens_in`/`tokens_out` como `0` e marcamos `usage_reported: false` no payload — os zeros são explicitamente placeholders, nunca estimativas. `cost_usd` é sempre `null` (nenhum custo é inventado no cliente ou no servidor).
+## 3. Provider e prompt
 
-## 5. HEIC
+- Uma única chamada multimodal com todos os blocos de imagem, ordenados como o usuário os organizou.
+- Dica do usuário entra num bloco de texto separado, rotulada explicitamente como contexto **não verificado**: o modelo deve usá-la para desempatar, nunca como fato; se a imagem contradiz a dica, prevalece a evidência visual e isso vira nota.
+- Instruções adicionais: não afirmar cultivar sem sinal visual claro; quando só houver segurança em nível de gênero, retornar o gênero com `rank: "genus"` e uma nota do que falta na foto (folha, flor, fruto, escala) para estreitar.
+- `confidence` continua nullable e nunca sintetizada; sem valor numérico inventado no cliente ou servidor.
+- Caso "amplo demais": não é erro — resultado normal com nota + caminho de edição manual em destaque.
+- `ai_usage_log`: exatamente uma linha por request, agora com `image_count` e `hint_provided`.
 
-Bloqueado explicitamente. `IDENTIFY_ACCEPTED_TYPES = image/jpeg | image/png | image/webp` alimenta tanto o `accept` dos inputs quanto `validateIdentifyFile`, que rejeita antes do upload com a mensagem `identify.fileTypeError`. Limite de tamanho: 8 MB. Não há conversão HEIC → JPEG nesta fase.
+## 4. UI e i18n
 
-## 6. QA manual pendente (do seu lado)
+- Picker: mantém os dois inputs (câmera com `capture`, galeria). Galeria passa a aceitar `multiple`, respeitando o teto de 3 (excedente é descartado com aviso).
+- Tira de miniaturas: cada item com botão remover (alvo ≥44 px, `aria-label` com o índice) e ação "usar como principal" (estado visual + `aria-pressed`). Botão "adicionar foto" desaparece ao chegar em 3.
+- Dica: `textarea` opcional, rótulo associado, contador até 280 caracteres, texto de ajuda dizendo que é opcional e melhora o resultado.
+- Validação: JPEG/PNG/WEBP por arquivo, 8 MB cada; HEIC continua bloqueado com a mesma mensagem explícita (sem conversão nesta fase).
+- Resultado: título "Identificação provável" + aviso permanente de incerteza; quando o candidato for só gênero, nota específica sugerindo folhas/flores/frutos.
 
-1. Fluxo real de câmera em iPhone/Android (o Playwright não injeta arquivo em input com `capture`), confirmando o bloqueio amigável de HEIC no iOS.
-2. Uma identificação ponta a ponta com foto real: verificar candidatos, confiança e nota no idioma ativo (pt/en/es).
-3. Criar planta a partir do resultado e confirmar a foto promovida na galeria + `is_primary`.
-4. Aplicar identificação a uma planta existente e confirmar que o staging não ficou no bucket.
-5. Abandonar o fluxo (voltar/trocar foto) e conferir ausência de objetos em `_staging`.
-6. Conferir as linhas em `ai_usage_log` (sucesso e erro) escopadas pela conta correta.
-7. Caso de erro: rodar com foto que não é planta (estado "incerto") e validar o fallback manual.
+Chaves novas (pt/en/es), com o pt como base:
+- `identify.probableTitle`: "Identificação provável"
+- `identify.uncertaintyNotice`: "A foto e a dica ajudam, mas esta identificação pode não ser definitiva."
+- `identify.addHint`: "Adicionar uma dica opcional"
+- `identify.hintHelp`: "Ex.: pimenta roxa cultivada em vaso. A dica é opcional e melhora o resultado."
+- `identify.morePhotosHint`: "Adicione fotos de folhas, flores e frutos para melhorar a precisão."
+- `identify.photoLimit`, `identify.setPrimary`, `identify.primaryBadge`, `identify.removePhoto`, `identify.uploadPartialError`, `identify.createdPartialPhotos`, `identify.genusOnlyNote`.
+
+## 5. Riscos e bloqueios
+
+- Latência maior com 3 imagens: mitigada por timeout de 75 s e streaming consumido no servidor.
+- Payload maior em base64: fotos até 8 MB × 3 pesam; se o gateway devolver 400 por tamanho, o passo seguinte é reduzir no cliente antes do upload (fora do escopo agora, mas é o plano B).
+- Sem migração: `plant_photos` já suporta múltiplas linhas e `is_primary`; nada novo é necessário.
+- Aceitar `multiple` no input de galeria varia por navegador Android; o teto e o descarte de excedente cobrem o caso.
+- LogoriOn segue inativo: só a assinatura do stub muda.
+
+## 6. Verificação (runtime, após o BUILD)
+
+1. Uma foto, sem dica — comportamento igual ao de hoje.
+2. Três fotos com dica ("pimenta roxa em vaso") — resultado mais específico ou gênero com nota honesta.
+3. Falha parcial de upload — as demais seguem, item com erro reexecutável.
+4. Criar planta — todas as fotos promovidas, exatamente uma `is_primary`, staging vazio.
+5. Planta existente — espécie aplicada e staging totalmente removido.
+6. Resultado incerto — fallback manual preserva as fotos no fluxo de criação.
+7. `ai_usage_log` — uma linha por request, com `image_count` e `hint_provided`, conta correta.
+8. Android câmera/galeria e iPhone com HEIC bloqueado com mensagem clara.
+
+## Recomendação
+
+Seguro para BUILD. O escopo se resume a contrato do provider, uma server function ampliada, ciclo de vida de staging em lista e UI/i18n — sem mudança de schema, de RLS ou de política de storage.
