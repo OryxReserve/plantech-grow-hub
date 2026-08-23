@@ -193,13 +193,19 @@ function IdentifyPlantPage() {
         return;
       }
 
-      if (result.candidates.length === 0) {
+      // A candidate is useful when it carries at least one name. Neither
+      // broadOnly, nor rank, nor a missing confidence downgrades it to failure.
+      const useful = result.candidates.filter(
+        (candidate) => candidate.commonName?.trim() || candidate.scientificName?.trim(),
+      );
+
+      if (useful.length === 0) {
         setCandidates([]);
         setStep("uncertain");
         return;
       }
 
-      setCandidates(result.candidates);
+      setCandidates(useful);
       setSelectedIndex(0);
       setStep("result");
     } catch (error) {
