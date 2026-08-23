@@ -175,6 +175,7 @@ const dictionaries = {
       "Planta cadastrada, mas algumas fotos não puderam ser anexadas.",
     "identify.genusOnlyNote":
       "Identificação ampla: fotos de folhas, flores ou frutos ajudam a chegar na espécie.",
+    "identify.broadBadge": "Identificação ampla",
     "identify.analyzingMultiHint":
       "Analisando todas as fotos juntas. Pode levar até um minuto.",
     "identify.rank.species": "Espécie",
