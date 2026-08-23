@@ -21,13 +21,15 @@ export const LOVABLE_VISION_MODEL = "google/gemini-3-pro";
 const TIMEOUT_MS = 75_000;
 
 const CandidateSchema = z.object({
-  commonName: z.string(),
+  commonName: z.string().nullable(),
   scientificName: z.string().nullable(),
   note: z.string().nullable(),
   confidence: z.number().nullable(),
   rank: z.enum(["species", "genus", "cultivar"]).nullable(),
   broadOnly: z.boolean().nullable(),
 });
+
+type RawCandidate = z.infer<typeof CandidateSchema>;
 
 const ResultSchema = z.object({
   isPlant: z.boolean(),
