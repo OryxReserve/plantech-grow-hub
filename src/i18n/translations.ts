@@ -980,3 +980,26 @@ export type TranslationKey = keyof (typeof dictionaries)["en"];
 export function translate(locale: Locale, key: TranslationKey): string {
   return dictionaries[locale][key] ?? dictionaries.en[key] ?? key;
 }
+
+export const LOCALE_STORAGE_KEY = "plantech.locale";
+export const DEFAULT_LOCALE: Locale = "pt";
+
+export function isLocale(value: unknown): value is Locale {
+  return typeof value === "string" && (LOCALES as readonly string[]).includes(value);
+}
+
+/**
+ * Locale used by non-reactive contexts such as route `head()`, which cannot
+ * use React hooks. Falls back to the default locale during SSR.
+ */
+export function getHeadLocale(): Locale {
+  if (typeof window === "undefined") return DEFAULT_LOCALE;
+  const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY);
+  if (isLocale(stored)) return stored;
+  const browser = window.navigator.language.slice(0, 2);
+  return isLocale(browser) ? browser : DEFAULT_LOCALE;
+}
+
+export function headTranslate(key: TranslationKey): string {
+  return translate(getHeadLocale(), key);
+}
