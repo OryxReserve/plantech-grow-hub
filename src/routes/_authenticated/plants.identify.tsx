@@ -66,6 +66,7 @@ function IdentifyPlantPage() {
   const [errorCategory, setErrorCategory] = useState<AiVisionErrorCategory>("unknown");
   const [retryable, setRetryable] = useState(false);
   const [usageWarning, setUsageWarning] = useState(false);
+  const [isNotPlant, setIsNotPlant] = useState(false);
 
   const plantQuery = useQuery({
     ...plantDetailQuery(activeAccountId ?? "", plantId ?? ""),
