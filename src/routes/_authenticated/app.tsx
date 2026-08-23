@@ -1,6 +1,6 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { Leaf, Droplets, Package } from "lucide-react";
+import { Leaf, Droplets, Package, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 import { LanguageSwitcher } from "@/components/language-switcher";
@@ -43,7 +43,6 @@ function AppShell() {
   }
 
   const sections: { key: TranslationKey; desc: TranslationKey; icon: typeof Leaf }[] = [
-    { key: "shell.plants", desc: "shell.plantsDesc", icon: Leaf },
     { key: "shell.careLog", desc: "shell.careLogDesc", icon: Droplets },
     { key: "shell.products", desc: "shell.productsDesc", icon: Package },
   ];
