@@ -384,13 +384,17 @@ function IdentifyPlantPage() {
                 />
               ) : null}
               <div className="rounded-xl border border-border p-4">
-                <p className="font-medium">{t("identify.uncertainTitle")}</p>
+                <p className="font-medium">
+                  {isNotPlant ? t("identify.notPlantTitle") : t("identify.uncertainTitle")}
+                </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {t("identify.uncertainBody")}
+                  {isNotPlant ? t("identify.notPlantBody") : t("identify.uncertainBody")}
                 </p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {t("identify.morePhotosHint")}
-                </p>
+                {!isNotPlant ? (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {t("identify.morePhotosHint")}
+                  </p>
+                ) : null}
               </div>
               <Button
                 className="h-12 w-full text-base"
