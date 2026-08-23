@@ -8,6 +8,7 @@ import { PlantPhotoGallery } from "@/components/plants/photo-gallery";
 import { CareProfileSheet } from "@/components/plants/profile/care-profile-sheet";
 import { CareSummary } from "@/components/plants/profile/care-summary";
 import { CareTimeline } from "@/components/plants/profile/care-timeline";
+import { InitialCareCard } from "@/components/plants/profile/initial-care-card";
 import { PlantDetailsCard } from "@/components/plants/profile/plant-details-card";
 import { PlantDetailsSheet } from "@/components/plants/profile/plant-details-sheet";
 import { PlantHero } from "@/components/plants/profile/plant-hero";
