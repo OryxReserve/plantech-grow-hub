@@ -156,6 +156,30 @@ const dictionaries = {
     "identify.saveError": "N\u00e3o foi poss\u00edvel salvar.",
     "identify.usageLogWarning": "O registro de uso de IA falhou para esta an\u00e1lise. O resultado continua v\u00e1lido.",
     "identify.fromDetail": "Identificar esp\u00e9cie",
+    "identify.probableTitle": "Identificação provável",
+    "identify.uncertaintyNotice":
+      "A foto e a dica ajudam, mas esta identificação pode não ser definitiva.",
+    "identify.addHint": "Adicionar uma dica opcional",
+    "identify.hintHelp":
+      "Ex.: pimenta roxa cultivada em vaso. A dica é opcional e melhora o resultado.",
+    "identify.hintPlaceholder": "Ex.: pimenta roxa cultivada em vaso",
+    "identify.morePhotosHint":
+      "Adicione fotos de folhas, flores e frutos para melhorar a precisão.",
+    "identify.photoLimit": "Você pode enviar até 3 fotos por análise.",
+    "identify.setPrimary": "Usar como principal",
+    "identify.primaryBadge": "Principal",
+    "identify.removePhoto": "Remover foto",
+    "identify.uploadPartialError":
+      "Não foi possível enviar todas as fotos. Tente de novo ou remova a que falhou.",
+    "identify.createdPartialPhotos":
+      "Planta cadastrada, mas algumas fotos não puderam ser anexadas.",
+    "identify.genusOnlyNote":
+      "Identificação ampla: fotos de folhas, flores ou frutos ajudam a chegar na espécie.",
+    "identify.analyzingMultiHint":
+      "Analisando todas as fotos juntas. Pode levar até um minuto.",
+    "identify.rank.species": "Espécie",
+    "identify.rank.genus": "Gênero",
+    "identify.rank.cultivar": "Cultivar",
 
     "role.owner": "Proprietário",
     "role.admin": "Administrador",
