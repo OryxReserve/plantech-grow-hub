@@ -151,6 +151,19 @@ function PlantDetailPage() {
             onOpenChange={setCareOpen}
           />
 
+          <PlantContextCard
+            profile={careProfile.data ?? null}
+            onEdit={() => setContextOpen(true)}
+          />
+
+          <PlantContextSheet
+            accountId={activeAccountId}
+            plantId={plant.id}
+            profile={careProfile.data ?? null}
+            open={contextOpen}
+            onOpenChange={setContextOpen}
+          />
+
           <CareTimeline accountId={activeAccountId} plantId={plant.id} />
 
           <PlantDetailsCard plant={plant} onEdit={() => setDetailsOpen(true)} />
