@@ -120,6 +120,11 @@ function PlantDetailPage() {
         <>
           <PlantHero accountId={activeAccountId} plant={plant} />
 
+          <InitialCareCard
+            accountId={activeAccountId}
+            scientificName={plant.scientific_name}
+          />
+
           <CareSummary profile={careProfile.data ?? null} />
 
           {careProfile.isError ? (
