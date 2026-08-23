@@ -151,25 +151,7 @@ export const lovableVisionProvider: AiVisionProvider = {
       const usage = await stream.usage;
       const latencyMs = Date.now() - startedAt;
 
-      const candidates = (parsed.candidates ?? [])
-        .slice(0, MAX_CANDIDATES)
-        .filter((candidate) => candidate.commonName?.trim())
-        .map((candidate) => {
-          const rank = normalizeRank(candidate.rank);
-          return {
-            commonName: candidate.commonName.trim(),
-            scientificName: candidate.scientificName?.trim() || null,
-            note: candidate.note?.trim() || null,
-            confidence:
-              typeof candidate.confidence === "number" &&
-              candidate.confidence >= 0 &&
-              candidate.confidence <= 1
-                ? candidate.confidence
-                : null,
-            rank,
-            broadOnly: candidate.broadOnly ?? rank === "genus",
-          };
-        });
+      const candidates = mapCandidates(parsed.candidates);
 
       const inputTokens = usage?.inputTokens;
       const outputTokens = usage?.outputTokens;
