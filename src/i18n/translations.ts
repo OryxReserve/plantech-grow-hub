@@ -175,6 +175,7 @@ const dictionaries = {
       "Planta cadastrada, mas algumas fotos não puderam ser anexadas.",
     "identify.genusOnlyNote":
       "Identificação ampla: fotos de folhas, flores ou frutos ajudam a chegar na espécie.",
+    "identify.broadBadge": "Identificação ampla",
     "identify.analyzingMultiHint":
       "Analisando todas as fotos juntas. Pode levar até um minuto.",
     "identify.rank.species": "Espécie",
@@ -352,6 +353,7 @@ const dictionaries = {
       "Plant created, but some photos could not be attached.",
     "identify.genusOnlyNote":
       "Broad identification: photos of leaves, flowers or fruits help narrow the species.",
+    "identify.broadBadge": "Broad identification",
     "identify.analyzingMultiHint":
       "Analyzing all photos together. This can take up to a minute.",
     "identify.rank.species": "Species",
@@ -529,6 +531,7 @@ const dictionaries = {
       "Planta creada, pero algunas fotos no se pudieron adjuntar.",
     "identify.genusOnlyNote":
       "Identificación amplia: fotos de hojas, flores o frutos ayudan a precisar la especie.",
+    "identify.broadBadge": "Identificación amplia",
     "identify.analyzingMultiHint":
       "Analizando todas las fotos juntas. Puede tardar hasta un minuto.",
     "identify.rank.species": "Especie",

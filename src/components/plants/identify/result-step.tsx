@@ -44,8 +44,15 @@ export function ResultStep({
       <ul className="space-y-3" role="radiogroup" aria-label={t("identify.probableTitle")}>
         {candidates.map((candidate, index) => {
           const selected = selectedIndex === index;
+          const broad = candidate.broadOnly || candidate.rank === "genus";
+          const primaryLabel =
+            candidate.commonName?.trim() || candidate.scientificName?.trim() || "";
+          const secondaryLabel =
+            candidate.scientificName && candidate.scientificName.trim() !== primaryLabel
+              ? candidate.scientificName
+              : null;
           return (
-            <li key={`${candidate.commonName}-${index}`}>
+            <li key={`${primaryLabel}-${index}`}>
               <button
                 type="button"
                 role="radio"
@@ -66,10 +73,10 @@ export function ResultStep({
                   {selected ? <Check className="size-4" /> : <Sprout className="size-3.5 text-muted-foreground" />}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block font-medium">{candidate.commonName}</span>
-                  {candidate.scientificName ? (
+                  <span className="block font-medium">{primaryLabel}</span>
+                  {secondaryLabel ? (
                     <span className="block text-sm italic text-muted-foreground">
-                      {candidate.scientificName}
+                      {secondaryLabel}
                     </span>
                   ) : null}
                   {candidate.note ? (
@@ -77,7 +84,7 @@ export function ResultStep({
                       {candidate.note}
                     </span>
                   ) : null}
-                  {candidate.broadOnly || candidate.rank === "genus" ? (
+                  {broad ? (
                     <span className="mt-2 block rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
                       {t("identify.genusOnlyNote")}
                     </span>
@@ -86,6 +93,11 @@ export function ResultStep({
                     <span className="inline-block rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                       {t(`identify.rank.${candidate.rank}`)}
                     </span>
+                    {broad ? (
+                      <span className="inline-block rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+                        {t("identify.broadBadge")}
+                      </span>
+                    ) : null}
                     {candidate.confidence !== null ? (
                       <span className="inline-block rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                         {t("identify.confidence")}:{" "}

@@ -21,13 +21,15 @@ export const LOVABLE_VISION_MODEL = "google/gemini-3-pro";
 const TIMEOUT_MS = 75_000;
 
 const CandidateSchema = z.object({
-  commonName: z.string(),
+  commonName: z.string().nullable(),
   scientificName: z.string().nullable(),
   note: z.string().nullable(),
   confidence: z.number().nullable(),
   rank: z.enum(["species", "genus", "cultivar"]).nullable(),
   broadOnly: z.boolean().nullable(),
 });
+
+type RawCandidate = z.infer<typeof CandidateSchema>;
 
 const ResultSchema = z.object({
   isPlant: z.boolean(),
@@ -51,9 +53,11 @@ function buildPrompt(language: string, imageCount: number, hasHint: boolean) {
     `Write every free-text value ("note") in ${languageName}.`,
     `Return at most ${MAX_CANDIDATES} candidate taxa, ordered from most to least likely.`,
     'Set "isPlant" to false when the photos do not show a plant.',
-    "Return an empty candidates array when you cannot identify the plant with reasonable certainty; explain nothing outside the JSON.",
-    'Use "confidence" as a number between 0 and 1 only when you can genuinely estimate it; otherwise use null.',
-    'Use "note" for a short identification cue or an explanation of the uncertainty.',
+    "Whenever the photos show botanical evidence, ALWAYS return your best plausible botanical hypothesis, even when you are not certain. Uncertainty is expected and belongs in the note, not in a refusal.",
+    "Return an empty candidates array ONLY when there is no usable botanical evidence at all: no plant in the photo, or the image is unusable (too blurry, too dark, unrecognizable). Explain nothing outside the JSON.",
+    "Prefer a broader but useful answer (likely species, or genus) over refusing to answer.",
+    'Use "confidence" as a number between 0 and 1 only when you can genuinely estimate it; otherwise use null. Never fabricate a number.',
+    'Use "note" for a short identification cue plus one sentence saying which additional visual evidence would raise certainty (close-up of leaves, flowers, fruits, bark, whole plant).',
     'Use null for "scientificName" when you do not know it. Never invent a name.',
     'Set "rank" to the most precise level the visual evidence actually supports: "cultivar", "species" or "genus".',
     'Never claim a cultivar without clear visual evidence for it. When in doubt, answer at species or genus level instead.',
@@ -91,6 +95,51 @@ function categorize(error: unknown): AiVisionErrorCategory {
 
 function normalizeRank(rank: IdentificationRank | null): IdentificationRank {
   return rank ?? "species";
+}
+
+/**
+ * A candidate is useful when it carries at least one name. A missing common
+ * name must never discard a valid scientific hypothesis (and vice versa).
+ */
+function mapCandidates(raw: RawCandidate[] | undefined) {
+  return (raw ?? [])
+    .slice(0, MAX_CANDIDATES)
+    .map((candidate) => {
+      const rank = normalizeRank(candidate.rank ?? null);
+      return {
+        commonName: candidate.commonName?.trim() || "",
+        scientificName: candidate.scientificName?.trim() || null,
+        note: candidate.note?.trim() || null,
+        confidence:
+          typeof candidate.confidence === "number" &&
+          candidate.confidence >= 0 &&
+          candidate.confidence <= 1
+            ? candidate.confidence
+            : null,
+        rank,
+        broadOnly: candidate.broadOnly ?? rank === "genus",
+      };
+    })
+    .filter((candidate) => candidate.commonName || candidate.scientificName);
+}
+
+/**
+ * Best-effort salvage when the model answered with usable content that did not
+ * match the schema exactly. Never throws: an unparsable text yields no
+ * candidates, exactly like before.
+ */
+function salvageCandidates(text: unknown) {
+  if (typeof text !== "string" || !text.trim()) return [];
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end <= start) return [];
+  try {
+    const parsed = ResultSchema.partial().safeParse(JSON.parse(text.slice(start, end + 1)));
+    if (!parsed.success) return [];
+    return mapCandidates(parsed.data.candidates);
+  } catch {
+    return [];
+  }
 }
 
 export const lovableVisionProvider: AiVisionProvider = {
@@ -149,25 +198,7 @@ export const lovableVisionProvider: AiVisionProvider = {
       const usage = await stream.usage;
       const latencyMs = Date.now() - startedAt;
 
-      const candidates = (parsed.candidates ?? [])
-        .slice(0, MAX_CANDIDATES)
-        .filter((candidate) => candidate.commonName?.trim())
-        .map((candidate) => {
-          const rank = normalizeRank(candidate.rank);
-          return {
-            commonName: candidate.commonName.trim(),
-            scientificName: candidate.scientificName?.trim() || null,
-            note: candidate.note?.trim() || null,
-            confidence:
-              typeof candidate.confidence === "number" &&
-              candidate.confidence >= 0 &&
-              candidate.confidence <= 1
-                ? candidate.confidence
-                : null,
-            rank,
-            broadOnly: candidate.broadOnly ?? rank === "genus",
-          };
-        });
+      const candidates = mapCandidates(parsed.candidates);
 
       const inputTokens = usage?.inputTokens;
       const outputTokens = usage?.outputTokens;
@@ -189,11 +220,11 @@ export const lovableVisionProvider: AiVisionProvider = {
         latencyMs,
       };
     } catch (error) {
-      // A schema-mismatch response is a weak answer, not an outage: surface it
-      // as "no confident result" so the user gets the manual fallback.
+      // A schema-mismatch response is a weak answer, not an outage. Try to
+      // salvage a usable hypothesis from the raw text before giving up.
       if (NoObjectGeneratedError.isInstance(error)) {
         return {
-          candidates: [],
+          candidates: salvageCandidates(error.text),
           isPlant: true,
           model: LOVABLE_VISION_MODEL,
           provider: "lovable",
