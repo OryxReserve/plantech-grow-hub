@@ -145,6 +145,7 @@ function IdentifyPlantPage() {
     if (!activeAccountId || photos.length === 0) return;
     if (isHintTooLong(hint)) return;
     setUsageWarning(false);
+    setIsNotPlant(false);
 
     let current = photos;
     if (current.some((photo) => !photo.path)) {
