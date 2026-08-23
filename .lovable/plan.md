@@ -1,67 +1,103 @@
-# Fase 2.2 — Detalhes da planta no perfil individual
+# Auditoria Plantech — estado atual vs. Master Plan
 
-## 1. Schema/estado atual encontrado
+Observação de método: o documento "Master Plan v0.1" não está no repositório nem foi colado nesta conversa. A auditoria compara o código real com as fases acordadas no histórico do projeto (Fase 0 fundação, Fase 1 identificação por foto, Fase 2 perfil individual). Se o v0.1 tiver itens diferentes, me envie o texto e eu reconcilio.
 
-Campos existentes hoje em `plants` (verificados no schema e em `src/lib/plants.ts`):
+## Fase atual
 
-| Campo | Tipo | Usado hoje |
-| --- | --- | --- |
-| `nickname` | text (obrigatório) | criar, editar, hero, lista de campos |
-| `species_name` | text | criar, editar, hero, lista |
-| `scientific_name` | text | criar, editar, hero, lista |
-| `location` | text livre | criar, editar, lista |
-| `acquired_at` | date | criar, editar, lista |
-| `notes` | text | criar, editar, lista |
-| `is_archived` | boolean | apenas filtro na listagem (sem UI) |
-| `created_at` / `updated_at` | timestamp | `created_at` exibido como "adicionado em" |
+Fase 2.2 concluída. O projeto está no fim da Fase 2 (perfil individual da planta), com Fase 0 e Fase 1 entregues e em uso.
 
-Onde esses campos aparecem hoje:
-- `src/routes/_authenticated/plants.$plantId.index.tsx` — bloco final de leitura (`Field`) com apelido, espécie, nome científico, localização, data de aquisição, notas e data de criação.
-- `src/routes/_authenticated/plants.$plantId.edit.tsx` — formulário de edição em rota separada.
-- `src/routes/_authenticated/plants.new.tsx` — criação.
-- `src/components/plants/profile/plant-hero.tsx` — apelido + espécie/científico.
-- Fase 2.1 (`care-summary`, `care-profile-sheet`, `care-timeline`) trata só `plant_care_profile` e `plant_care_log`.
+Verificado no código:
+- Migrations aplicadas: 2 arquivos em `supabase/migrations/` (fundação + `plant_care_profile`).
+- Rotas autenticadas: `plants.index`, `plants.new`, `plants.$plantId.index`, `plants.$plantId.edit`, `plants.identify`.
+- Camadas de dados: `plants.ts`, `plant-photos.ts`, `plant-care-profile.ts`, `plant-care-log.ts`, `plant-identification.ts` + `.functions.ts`.
+- Perfil montado por componentes: hero, care-summary, care-profile-sheet, care-timeline, plant-details-card, plant-details-sheet.
+- i18n com 724 linhas cobrindo pt/en/es.
 
-Campos pedidos que **não existem** no schema atual e não podem entrar no BUILD 2.2 sem SQL futuro: indoor/outdoor, tamanho do vaso, tipo de vaso, drenagem, tipo de solo, distância da janela, orientação da janela, data da última rega (só derivável de `plant_care_log`, que está fora de escopo).
+## Aderência ao master plan
 
-## 2. Escopo recomendado para Fase 2.2 (sem SQL)
+Fase 0 — aderente:
+- Enums, 9 tabelas, RLS com helpers `SECURITY DEFINER`, GRANTs, trigger de signup e bucket privado `plant-photos` existem no banco.
+- Todo acesso a dados passa por `activeAccountId` (`src/context/active-account.tsx`), e as query keys são escopadas por conta em `plantKeys`, `plantCareLogKeys`.
 
-Bloco novo "Detalhes da planta" na própria rota `/plants/$plantId`, logo abaixo da timeline, substituindo o bloco `Field` solto atual:
+Fase 1 — aderente:
+- Identificação por foto com provider abstrato (`AiVisionProvider`), rota multi-etapas, staging de upload, múltiplas fotos + hint, tratamento de "não é planta".
+- `ai_usage_log` é escrito somente server-side via service role (`src/lib/ai/usage-log.server.ts`), nunca pelo cliente.
 
-- Card com título, resumo dos detalhes em pares rótulo/valor e botão "Editar detalhes".
-- Edição em **Sheet** (mesmo padrão visual e de feedback do `CareProfileSheet`: toast de sucesso, toast de erro, sheet permanece aberto em falha).
-- Campos editáveis agora: `nickname` (obrigatório), `species_name`, `scientific_name`, `location`, `acquired_at`, `notes`.
-- Somente leitura no card: `created_at`.
-- A rota `/plants/$plantId/edit` continua existindo e funcionando (sem remoção), para não quebrar links; o Sheet passa a ser o caminho principal a partir do perfil.
+Lacunas em relação à fundação prometida:
+- `products`: tabela existe no banco, mas não há camada de dados nem tela. O shell (`app.tsx`) já mostra o card "Produtos" sem destino real.
+- `plant_care_log`: existe leitura (timeline), não existe escrita. Nenhum caminho no app grava rega/adubação, então a timeline nasce sempre vazia.
+- `platform_admins`: tabela e função `is_platform_admin` existem, sem nenhuma superfície de uso.
+- `account_members` com status `invited`: schema-ready, sem fluxo de convite (decidido assim na Fase 0).
+- PWA: não há `manifest.webmanifest` nem service worker em `public/`. O produto é mobile-first no layout, mas ainda não é instalável.
 
-Explicitamente fora de escopo: qualquer campo estruturado de vaso/solo/janela/indoor-outdoor, última rega, arquivar planta, IA, FAQ, "sobre a espécie", cálculo de saúde, próxima rega, lembretes, alterações em `plant_care_log` e `plant_care_profile`.
+## Riscos estruturais
 
-## 3. Arquivos e abordagem
+1. Timeline sem escrita é o risco de produto mais visível: o perfil promete histórico e nenhuma ação do app alimenta `plant_care_log`.
+2. Card "Produtos" no shell aponta para um recurso inexistente — expectativa quebrada na navegação.
+3. Sem PWA manifest, "app mobile-first, PWA" ainda não é verdade tecnicamente.
+4. Duplicidade de edição da planta: `/plants/$plantId/edit` e o `PlantDetailsSheet` fazem a mesma coisa. Baixo risco hoje (ambos usam `updatePlant`/`PlantInput`), mas é divergência esperando acontecer.
+5. Fotos e identificação não se cruzam: a foto usada na identificação não vira `plant_photos` primária automaticamente (a confirmar no build seguinte, não é bug de fundação).
 
-Criar:
-- `src/components/plants/profile/plant-details-card.tsx` — leitura dos detalhes + botão de edição (reaproveita o componente `Field` movido para cá).
-- `src/components/plants/profile/plant-details-sheet.tsx` — formulário em Sheet reusando `updatePlant`/`PlantInput` de `src/lib/plants.ts` e o padrão de toasts do `care-profile-sheet.tsx`.
+Nada disso é falha de isolamento multi-tenant. O escopo por `account_id` está consistente em todas as camadas verificadas.
 
-Alterar:
-- `src/routes/_authenticated/plants.$plantId.index.tsx` — trocar o bloco `Field` inline pelos dois componentes novos (incremento pequeno, sem refactor da rota).
-- `src/i18n/translations.ts` — chaves novas em pt/en/es: título da seção, botão editar detalhes, toasts de sucesso/erro, mensagem de apelido obrigatório. Reusar as chaves `field.*` já existentes.
+## Débitos técnicos críticos
 
-Sem novas queries: `plantDetailQuery` e `updatePlant` já cobrem tudo; após salvar, invalidar `plantKeys.all(accountId)`.
+Críticos (bloqueiam coerência do produto):
+- Escrita de `plant_care_log` (registrar rega/adubação/poda a partir do perfil).
 
-## 4. Dependências e riscos
+Importantes (não bloqueiam, mas acumulam):
+- CRUD de `products` ou remoção temporária do card do shell.
+- Manifest PWA + ícones.
 
-- **Dá para fazer agora, sem SQL:** todo o escopo da seção 2.
-- **Exige SQL futuro (Fase 2.3+, fora desta rodada):** indoor/outdoor, tamanho e tipo de vaso, drenagem, tipo de solo, distância e orientação da janela — todos exigiriam colunas ou enums novos em `plants`. Não entram no BUILD 2.2.
-- **Derivável, mas fora de escopo:** "última rega" viria de `plant_care_log`, que esta fase não toca.
-- Risco baixo de duplicidade entre o Sheet e a rota `/edit`: mitigado mantendo as duas sobre a mesma função `updatePlant` e o mesmo tipo `PlantInput`.
-- Risco de a tela ficar longa: mitigado removendo o bloco `Field` antigo ao introduzir o card.
+Não críticos:
+- Unificar `/edit` com o Sheet de detalhes.
+- Painel de platform admin.
 
-## 5. Critérios de aceite
+## Integração de APIs futuras sem refatoração grande
 
-1. `/plants/$plantId` mostra um card "Detalhes da planta" com apelido, espécie, nome científico, localização, data de aquisição, notas e data de criação; valores vazios usam o traço padrão.
-2. O botão "Editar detalhes" abre um Sheet preenchido com os valores atuais.
-3. Salvar com apelido válido: persiste, fecha o Sheet, mostra toast de sucesso e o card reflete os novos valores sem reload.
-4. Salvar com apelido vazio: bloqueia, mostra erro inline + toast e mantém o Sheet aberto.
-5. Erro de rede: toast de erro e o Sheet permanece aberto com os dados digitados.
-6. Todas as operações continuam filtradas por `activeAccountId`; nenhuma chamada nova ignora o contexto de conta.
-7. Todo texto novo existe em pt, en e es; nenhum schema, `plant_care_profile` ou `plant_care_log` é alterado.
+Sim, a estrutura suporta. Motivos concretos:
+- A identificação já está atrás de uma interface (`AiVisionProvider`) com registry por ambiente (`provider-registry.server.ts`), então trocar/adicionar LogoriOn ou outro provedor é implementar um módulo, não refatorar o fluxo.
+- Toda chamada de IA passa por `createServerFn` com middleware de auth, e o log de uso é centralizado em `logAiUsage`.
+- Uma futura API de cuidado (espécie → recomendações) encaixa no mesmo padrão: novo `*.server.ts` provider + server function + gravação em `plant_care_profile`, que já existe 1:1 com `plants`.
+
+Ressalva única: dados de cuidado vindos de API precisarão de colunas de origem/confiança em `plant_care_profile` (ex.: `source`, `confidence`, `generated_at`) para separar o que o usuário escreveu do que a IA sugeriu. É uma migration aditiva pequena, não refatoração.
+
+## O que está bom para continuar
+
+- Fundação multi-tenant e RLS.
+- Contexto de conta e padrão de query keys.
+- Camada de provider de IA e logging de uso.
+- i18n pt/en/es consistente.
+- Composição por componentes do perfil da planta.
+- Padrão de feedback (toasts + validação inline) já estabelecido no `care-profile-sheet`.
+
+## O que está comprometido ou frágil
+
+- `plant_care_log` sem escrita.
+- `products` como promessa vazia na navegação.
+- Ausência de PWA real.
+- Dois caminhos de edição da mesma entidade.
+
+## Recomendação
+
+**Continuar como está e implementar as APIs em paralelo** — com uma correção pequena antes: fechar a escrita de `plant_care_log`. A fundação não precisa ser ajustada nem refatorada; o que falta é superfície de produto, não estrutura.
+
+Ordem sugerida:
+1. Fase 2.3 — registrar cuidado (escrita em `plant_care_log` a partir do perfil, alimentando a timeline).
+2. Fase 2.4 — CRUD de `products` (armário da conta).
+3. Fase 3 — API de cuidado por espécie, com migration aditiva de origem/confiança em `plant_care_profile`.
+4. PWA (manifest, ícones, instalabilidade) quando o app estiver pronto para uso em campo.
+
+## O que pode esperar
+
+- Fluxo de convite de membros.
+- Painel de platform admin.
+- Unificação de `/edit` com o Sheet.
+- Notificações e lembretes.
+- Diagnóstico por foto.
+
+## O que não deve esperar
+
+- Escrita de `plant_care_log` — sem ela o perfil mostra uma promessa vazia.
+- Decisão sobre o card "Produtos": implementar ou esconder até existir.
+- Definir o contrato de origem/confiança em `plant_care_profile` antes de a primeira API de cuidado gravar dados lá.
