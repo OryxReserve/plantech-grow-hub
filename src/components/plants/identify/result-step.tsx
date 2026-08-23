@@ -93,6 +93,11 @@ export function ResultStep({
                     <span className="inline-block rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                       {t(`identify.rank.${candidate.rank}`)}
                     </span>
+                    {broad ? (
+                      <span className="inline-block rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+                        {t("identify.broadBadge")}
+                      </span>
+                    ) : null}
                     {candidate.confidence !== null ? (
                       <span className="inline-block rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                         {t("identify.confidence")}:{" "}
