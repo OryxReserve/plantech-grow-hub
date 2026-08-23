@@ -66,6 +66,7 @@ function IdentifyPlantPage() {
   const [errorCategory, setErrorCategory] = useState<AiVisionErrorCategory>("unknown");
   const [retryable, setRetryable] = useState(false);
   const [usageWarning, setUsageWarning] = useState(false);
+  const [isNotPlant, setIsNotPlant] = useState(false);
 
   const plantQuery = useQuery({
     ...plantDetailQuery(activeAccountId ?? "", plantId ?? ""),
@@ -144,6 +145,7 @@ function IdentifyPlantPage() {
     if (!activeAccountId || photos.length === 0) return;
     if (isHintTooLong(hint)) return;
     setUsageWarning(false);
+    setIsNotPlant(false);
 
     let current = photos;
     if (current.some((photo) => !photo.path)) {
@@ -193,6 +195,15 @@ function IdentifyPlantPage() {
         return;
       }
 
+      // Precedence: the provider explicitly said this is not a plant.
+      // Any candidates returned in this case are ignored for routing.
+      if (result.isPlant === false) {
+        setIsNotPlant(true);
+        setCandidates([]);
+        setStep("uncertain");
+        return;
+      }
+
       // A candidate is useful when it carries at least one name. Neither
       // broadOnly, nor rank, nor a missing confidence downgrades it to failure.
       const useful = result.candidates.filter(
@@ -200,11 +211,13 @@ function IdentifyPlantPage() {
       );
 
       if (useful.length === 0) {
+        setIsNotPlant(false);
         setCandidates([]);
         setStep("uncertain");
         return;
       }
 
+      setIsNotPlant(false);
       setCandidates(useful);
       setSelectedIndex(0);
       setStep("result");
@@ -371,13 +384,17 @@ function IdentifyPlantPage() {
                 />
               ) : null}
               <div className="rounded-xl border border-border p-4">
-                <p className="font-medium">{t("identify.uncertainTitle")}</p>
+                <p className="font-medium">
+                  {isNotPlant ? t("identify.notPlantTitle") : t("identify.uncertainTitle")}
+                </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {t("identify.uncertainBody")}
+                  {isNotPlant ? t("identify.notPlantBody") : t("identify.uncertainBody")}
                 </p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {t("identify.morePhotosHint")}
-                </p>
+                {!isNotPlant ? (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {t("identify.morePhotosHint")}
+                  </p>
+                ) : null}
               </div>
               <Button
                 className="h-12 w-full text-base"
