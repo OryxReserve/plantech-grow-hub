@@ -93,10 +93,12 @@ export type Database = {
           account_id: string
           cost_usd: number | null
           created_at: string
+          credits_used: number
           feature: string
           id: string
           latency_ms: number | null
           model: string | null
+          plant_id: string | null
           provider: string
           status: string
           summarized_payload: Json
@@ -108,10 +110,12 @@ export type Database = {
           account_id: string
           cost_usd?: number | null
           created_at?: string
+          credits_used?: number
           feature: string
           id?: string
           latency_ms?: number | null
           model?: string | null
+          plant_id?: string | null
           provider?: string
           status?: string
           summarized_payload?: Json
@@ -123,10 +127,12 @@ export type Database = {
           account_id?: string
           cost_usd?: number | null
           created_at?: string
+          credits_used?: number
           feature?: string
           id?: string
           latency_ms?: number | null
           model?: string | null
+          plant_id?: string | null
           provider?: string
           status?: string
           summarized_payload?: Json
@@ -140,6 +146,13 @@ export type Database = {
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_usage_log_plant_id_fkey"
+            columns: ["plant_id"]
+            isOneToOne: false
+            referencedRelation: "plants"
             referencedColumns: ["id"]
           },
         ]
