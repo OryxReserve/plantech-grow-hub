@@ -309,6 +309,30 @@ const dictionaries = {
     "identify.saveError": "Could not save.",
     "identify.usageLogWarning": "AI usage logging failed for this analysis. The result is still valid.",
     "identify.fromDetail": "Identify species",
+    "identify.probableTitle": "Probable identification",
+    "identify.uncertaintyNotice":
+      "The photos and the hint help, but this identification may not be definitive.",
+    "identify.addHint": "Add an optional hint",
+    "identify.hintHelp":
+      "E.g.: purple chilli grown in a pot. The hint is optional and improves the result.",
+    "identify.hintPlaceholder": "E.g.: purple chilli grown in a pot",
+    "identify.morePhotosHint":
+      "Add photos of leaves, flowers and fruits to improve accuracy.",
+    "identify.photoLimit": "You can send up to 3 photos per analysis.",
+    "identify.setPrimary": "Use as main",
+    "identify.primaryBadge": "Main",
+    "identify.removePhoto": "Remove photo",
+    "identify.uploadPartialError":
+      "Some photos could not be uploaded. Retry or remove the failed one.",
+    "identify.createdPartialPhotos":
+      "Plant created, but some photos could not be attached.",
+    "identify.genusOnlyNote":
+      "Broad identification: photos of leaves, flowers or fruits help narrow the species.",
+    "identify.analyzingMultiHint":
+      "Analyzing all photos together. This can take up to a minute.",
+    "identify.rank.species": "Species",
+    "identify.rank.genus": "Genus",
+    "identify.rank.cultivar": "Cultivar",
 
     "role.owner": "Owner",
     "role.admin": "Admin",
