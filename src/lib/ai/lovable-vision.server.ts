@@ -97,6 +97,51 @@ function normalizeRank(rank: IdentificationRank | null): IdentificationRank {
   return rank ?? "species";
 }
 
+/**
+ * A candidate is useful when it carries at least one name. A missing common
+ * name must never discard a valid scientific hypothesis (and vice versa).
+ */
+function mapCandidates(raw: RawCandidate[] | undefined) {
+  return (raw ?? [])
+    .slice(0, MAX_CANDIDATES)
+    .map((candidate) => {
+      const rank = normalizeRank(candidate.rank ?? null);
+      return {
+        commonName: candidate.commonName?.trim() || "",
+        scientificName: candidate.scientificName?.trim() || null,
+        note: candidate.note?.trim() || null,
+        confidence:
+          typeof candidate.confidence === "number" &&
+          candidate.confidence >= 0 &&
+          candidate.confidence <= 1
+            ? candidate.confidence
+            : null,
+        rank,
+        broadOnly: candidate.broadOnly ?? rank === "genus",
+      };
+    })
+    .filter((candidate) => candidate.commonName || candidate.scientificName);
+}
+
+/**
+ * Best-effort salvage when the model answered with usable content that did not
+ * match the schema exactly. Never throws: an unparsable text yields no
+ * candidates, exactly like before.
+ */
+function salvageCandidates(text: unknown) {
+  if (typeof text !== "string" || !text.trim()) return [];
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end <= start) return [];
+  try {
+    const parsed = ResultSchema.partial().safeParse(JSON.parse(text.slice(start, end + 1)));
+    if (!parsed.success) return [];
+    return mapCandidates(parsed.data.candidates);
+  } catch {
+    return [];
+  }
+}
+
 export const lovableVisionProvider: AiVisionProvider = {
   name: "lovable",
 
