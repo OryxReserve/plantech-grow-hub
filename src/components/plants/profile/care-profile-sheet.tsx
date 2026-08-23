@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -98,14 +99,14 @@ export function CareProfileSheet({
   const queryClient = useQueryClient();
   const [form, setForm] = useState<FormState>(() => toFormState(profile));
   const [fieldError, setFieldError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const wateringRef = useRef<HTMLInputElement>(null);
+  const fertilizingRef = useRef<HTMLInputElement>(null);
 
   // A missing profile simply opens an empty form.
   useEffect(() => {
     if (open) {
       setForm(toFormState(profile));
       setFieldError(null);
-      setSaved(false);
     }
   }, [open, profile]);
 
@@ -117,23 +118,37 @@ export function CareProfileSheet({
       queryClient.invalidateQueries({
         queryKey: plantCareProfileKeys.detail(accountId, plantId),
       });
-      setSaved(true);
+      toast.success(t("care.saveSuccessToast"));
+      onOpenChange(false);
+    },
+    onError: () => {
+      toast.error(t("care.saveErrorToast"));
     },
   });
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
-    setSaved(false);
+  };
+
+  const focusFirstInvalid = (firstRef: React.RefObject<HTMLInputElement | null>) => {
+    const element = firstRef.current;
+    if (!element) return;
+    element.focus();
+    element.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
-    setSaved(false);
 
     const watering = intervalOrNull(form.watering_interval_days);
     const fertilizing = intervalOrNull(form.fertilizing_interval_days);
-    if (watering === undefined || fertilizing === undefined) {
+    const wateringInvalid = watering === undefined;
+    const fertilizingInvalid = fertilizing === undefined;
+
+    if (wateringInvalid || fertilizingInvalid) {
       setFieldError(t("care.invalidInterval"));
+      toast.error(t("care.validationErrorToast"));
+      focusFirstInvalid(wateringInvalid ? wateringRef : fertilizingRef);
       return;
     }
     setFieldError(null);
@@ -164,10 +179,12 @@ export function CareProfileSheet({
             </Label>
             <Input
               id="watering_interval_days"
+              ref={wateringRef}
               inputMode="numeric"
               value={form.watering_interval_days}
               onChange={(e) => set("watering_interval_days", e.target.value)}
               className="h-12"
+              aria-invalid={fieldError ? "true" : "false"}
             />
           </div>
 
@@ -221,10 +238,12 @@ export function CareProfileSheet({
             </Label>
             <Input
               id="fertilizing_interval_days"
+              ref={fertilizingRef}
               inputMode="numeric"
               value={form.fertilizing_interval_days}
               onChange={(e) => set("fertilizing_interval_days", e.target.value)}
               className="h-12"
+              aria-invalid={fieldError ? "true" : "false"}
             />
           </div>
 
@@ -256,11 +275,6 @@ export function CareProfileSheet({
           {mutation.isError ? (
             <p role="alert" className="text-sm text-destructive">
               {t("care.saveError")}
-            </p>
-          ) : null}
-          {saved ? (
-            <p role="status" className="text-sm text-primary">
-              {t("care.saved")}
             </p>
           ) : null}
 
