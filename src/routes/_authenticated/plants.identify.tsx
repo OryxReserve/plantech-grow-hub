@@ -217,9 +217,11 @@ function IdentifyPlantPage() {
   }
 
   function goToConfirm(candidate: PlantIdentificationCandidate | null) {
+    // Fall back to the scientific name when the model only committed to that.
+    const label = candidate?.commonName?.trim() || candidate?.scientificName?.trim() || "";
     setValues({
-      nickname: candidate?.commonName ?? "",
-      speciesName: candidate?.commonName ?? "",
+      nickname: label,
+      speciesName: label,
       scientificName: candidate?.scientificName ?? "",
     });
     setStep("confirm");
