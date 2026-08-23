@@ -109,6 +109,15 @@ export function CareProfileSheet({
   const wateringRef = useRef<HTMLInputElement>(null);
   const fertilizingRef = useRef<HTMLInputElement>(null);
 
+  function FieldHint({ value }: { value: string }) {
+    if (!fieldLooksUseless(value)) return null;
+    return (
+      <p role="note" className="text-sm text-muted-foreground italic">
+        {t("care.fieldHint.noUsefulText")}
+      </p>
+    );
+  }
+
   // A missing profile simply opens an empty form.
   useEffect(() => {
     if (open) {
@@ -205,6 +214,7 @@ export function CareProfileSheet({
               onChange={(e) => set("watering_amount_note", e.target.value)}
               rows={2}
             />
+            <FieldHint value={form.watering_amount_note} />
           </div>
 
           <div className="space-y-2">
@@ -237,6 +247,7 @@ export function CareProfileSheet({
               onChange={(e) => set("light_note", e.target.value)}
               rows={2}
             />
+            <FieldHint value={form.light_note} />
           </div>
 
           <div className="space-y-2">
@@ -262,6 +273,7 @@ export function CareProfileSheet({
               onChange={(e) => set("fertilizer_type", e.target.value)}
               className="h-12"
             />
+            <FieldHint value={form.fertilizer_type} />
           </div>
 
           <div className="space-y-2">
@@ -272,6 +284,7 @@ export function CareProfileSheet({
               onChange={(e) => set("fertilizing_note", e.target.value)}
               rows={2}
             />
+            <FieldHint value={form.fertilizing_note} />
           </div>
 
           {fieldError ? (
