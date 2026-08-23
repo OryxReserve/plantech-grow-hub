@@ -11,7 +11,7 @@ export function PlantScreen({
   children,
 }: {
   title: string;
-  backTo: LinkProps["to"];
+  backTo: NonNullable<LinkProps["to"]>;
   backLabel: string;
   action?: ReactNode;
   children: ReactNode;
