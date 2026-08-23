@@ -1,4 +1,4 @@
-import { Check, Sprout } from "lucide-react";
+import { Check, Info, Sprout } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/i18n/i18n";
@@ -32,11 +32,16 @@ export function ResultStep({
       ) : null}
 
       <div>
-        <h2 className="text-base font-medium">{t("identify.resultTitle")}</h2>
+        <h2 className="text-base font-medium">{t("identify.probableTitle")}</h2>
         <p className="mt-1 text-sm text-muted-foreground">{t("identify.resultBody")}</p>
       </div>
 
-      <ul className="space-y-3" role="radiogroup" aria-label={t("identify.resultTitle")}>
+      <p className="flex items-start gap-2 rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+        <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
+        {t("identify.uncertaintyNotice")}
+      </p>
+
+      <ul className="space-y-3" role="radiogroup" aria-label={t("identify.probableTitle")}>
         {candidates.map((candidate, index) => {
           const selected = selectedIndex === index;
           return (
@@ -72,14 +77,24 @@ export function ResultStep({
                       {candidate.note}
                     </span>
                   ) : null}
-                  {candidate.confidence !== null ? (
-                    <span className="mt-2 inline-block rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                      {t("identify.confidence")}:{" "}
-                      {new Intl.NumberFormat(locale, { style: "percent" }).format(
-                        candidate.confidence,
-                      )}
+                  {candidate.broadOnly || candidate.rank === "genus" ? (
+                    <span className="mt-2 block rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
+                      {t("identify.genusOnlyNote")}
                     </span>
                   ) : null}
+                  <span className="mt-2 flex flex-wrap gap-2">
+                    <span className="inline-block rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                      {t(`identify.rank.${candidate.rank}`)}
+                    </span>
+                    {candidate.confidence !== null ? (
+                      <span className="inline-block rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                        {t("identify.confidence")}:{" "}
+                        {new Intl.NumberFormat(locale, { style: "percent" }).format(
+                          candidate.confidence,
+                        )}
+                      </span>
+                    ) : null}
+                  </span>
                 </span>
               </button>
             </li>
@@ -94,7 +109,7 @@ export function ResultStep({
       >
         {t("identify.continue")}
       </Button>
-      <Button variant="ghost" className="h-11 w-full" onClick={onManual}>
+      <Button variant="outline" className="h-12 w-full" onClick={onManual}>
         {t("identify.rejectAll")}
       </Button>
     </div>
