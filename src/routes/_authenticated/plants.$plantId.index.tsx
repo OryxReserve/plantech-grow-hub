@@ -45,6 +45,7 @@ function PlantDetailPage() {
   const { activeAccountId, isLoading: accountLoading } = useActiveAccount();
   const [careOpen, setCareOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [contextOpen, setContextOpen] = useState(false);
 
   const query = useQuery({
     ...plantDetailQuery(activeAccountId ?? "", plantId),
