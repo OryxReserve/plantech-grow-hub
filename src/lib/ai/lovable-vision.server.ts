@@ -220,11 +220,11 @@ export const lovableVisionProvider: AiVisionProvider = {
         latencyMs,
       };
     } catch (error) {
-      // A schema-mismatch response is a weak answer, not an outage: surface it
-      // as "no confident result" so the user gets the manual fallback.
+      // A schema-mismatch response is a weak answer, not an outage. Try to
+      // salvage a usable hypothesis from the raw text before giving up.
       if (NoObjectGeneratedError.isInstance(error)) {
         return {
-          candidates: [],
+          candidates: salvageCandidates(error.text),
           isPlant: true,
           model: LOVABLE_VISION_MODEL,
           provider: "lovable",
