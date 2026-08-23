@@ -240,6 +240,16 @@ const dictionaries = {
     "careType.note": "Anotação",
 
 
+    "initialCare.title": "Cuidados iniciais",
+    "initialCare.subtitle":
+      "Orientação geral da espécie, não uma rotina personalizada da sua planta.",
+    "initialCare.notes": "Sinais de atenção",
+    "initialCare.basedOn": "Baseado em",
+    "initialCare.noSpecies":
+      "Os cuidados iniciais aparecem quando a espécie da planta estiver definida.",
+    "initialCare.loading": "Carregando cuidados iniciais...",
+    "initialCare.error": "Não foi possível carregar os cuidados iniciais agora.",
+
     "role.owner": "Proprietário",
     "role.admin": "Administrador",
     "role.member": "Membro",
@@ -474,6 +484,16 @@ const dictionaries = {
     "careType.treatment": "Treatment",
     "careType.note": "Note",
 
+
+    "initialCare.title": "Initial care",
+    "initialCare.subtitle":
+      "General guidance for the species, not a personalized routine for your plant.",
+    "initialCare.notes": "Signs to watch",
+    "initialCare.basedOn": "Based on",
+    "initialCare.noSpecies":
+      "Initial care appears once this plant's species is defined.",
+    "initialCare.loading": "Loading initial care...",
+    "initialCare.error": "Initial care could not be loaded right now.",
 
     "role.owner": "Owner",
     "role.admin": "Admin",
@@ -710,6 +730,16 @@ const dictionaries = {
     "careType.treatment": "Tratamiento",
     "careType.note": "Nota",
 
+
+    "initialCare.title": "Cuidados iniciales",
+    "initialCare.subtitle":
+      "Orientación general de la especie, no una rutina personalizada de tu planta.",
+    "initialCare.notes": "Señales de atención",
+    "initialCare.basedOn": "Basado en",
+    "initialCare.noSpecies":
+      "Los cuidados iniciales aparecen cuando la especie de la planta esté definida.",
+    "initialCare.loading": "Cargando cuidados iniciales...",
+    "initialCare.error": "No se pudieron cargar los cuidados iniciales ahora.",
 
     "role.owner": "Propietario",
     "role.admin": "Administrador",

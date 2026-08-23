@@ -461,6 +461,54 @@ export type Database = {
         }
         Relationships: []
       }
+      species_care_guide: {
+        Row: {
+          created_at: string
+          fertilizing: string | null
+          generated_at: string | null
+          id: string
+          language: string
+          light: string | null
+          model: string | null
+          notes: string | null
+          scientific_name: string
+          source: string
+          species_key: string
+          updated_at: string
+          water: string | null
+        }
+        Insert: {
+          created_at?: string
+          fertilizing?: string | null
+          generated_at?: string | null
+          id?: string
+          language: string
+          light?: string | null
+          model?: string | null
+          notes?: string | null
+          scientific_name: string
+          source?: string
+          species_key: string
+          updated_at?: string
+          water?: string | null
+        }
+        Update: {
+          created_at?: string
+          fertilizing?: string | null
+          generated_at?: string | null
+          id?: string
+          language?: string
+          light?: string | null
+          model?: string | null
+          notes?: string | null
+          scientific_name?: string
+          source?: string
+          species_key?: string
+          updated_at?: string
+          water?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
