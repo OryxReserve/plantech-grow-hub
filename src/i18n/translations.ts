@@ -655,6 +655,21 @@ const dictionaries = {
     "app.name": "Plantech",
     "app.tagline": "Cuida tus plantas con método.",
 
+    "meta.root.title": "Plantech",
+    "meta.root.description":
+      "Plantech — cuidado de plantas, jardín y armario de productos, multicuenta y mobile-first.",
+    "meta.root.ogDescription":
+      "Cuidado de plantas, jardín y productos en una app mobile-first.",
+    "meta.landing.title": "Plantech — cuidado de plantas y jardín",
+    "meta.landing.description":
+      "Plantech organiza tus plantas, el historial de cuidados y el armario de productos de tu cuenta en una app mobile-first.",
+    "meta.landing.ogDescription":
+      "Registra plantas, sigue los cuidados y gestiona productos en un solo lugar.",
+    "meta.auth.title": "Entrar | Plantech",
+    "meta.auth.description":
+      "Entra en Plantech para gestionar tus plantas, registros de cuidado y productos de tu cuenta.",
+    "meta.auth.ogDescription": "Entra en Plantech y cuida tus plantas con método.",
+
     "landing.heading": "Tu jardín, organizado.",
     "landing.body":
       "Registra plantas, sigue los cuidados y mantén el armario de productos de tu cuenta en un solo lugar.",
