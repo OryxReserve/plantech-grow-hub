@@ -13,6 +13,10 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
+import { Route as AuthenticatedPlantsIndexRouteImport } from './routes/_authenticated/plants.index'
+import { Route as AuthenticatedPlantsNewRouteImport } from './routes/_authenticated/plants.new'
+import { Route as AuthenticatedPlantsPlantIdIndexRouteImport } from './routes/_authenticated/plants.$plantId.index'
+import { Route as AuthenticatedPlantsPlantIdEditRouteImport } from './routes/_authenticated/plants.$plantId.edit'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -33,16 +37,47 @@ const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
   path: '/app',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedPlantsIndexRoute =
+  AuthenticatedPlantsIndexRouteImport.update({
+    id: '/plants/',
+    path: '/plants/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedPlantsNewRoute = AuthenticatedPlantsNewRouteImport.update({
+  id: '/plants/new',
+  path: '/plants/new',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPlantsPlantIdIndexRoute =
+  AuthenticatedPlantsPlantIdIndexRouteImport.update({
+    id: '/plants/$plantId/',
+    path: '/plants/$plantId/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedPlantsPlantIdEditRoute =
+  AuthenticatedPlantsPlantIdEditRouteImport.update({
+    id: '/plants/$plantId/edit',
+    path: '/plants/$plantId/edit',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/app': typeof AuthenticatedAppRoute
+  '/plants/new': typeof AuthenticatedPlantsNewRoute
+  '/plants/': typeof AuthenticatedPlantsIndexRoute
+  '/plants/$plantId/edit': typeof AuthenticatedPlantsPlantIdEditRoute
+  '/plants/$plantId/': typeof AuthenticatedPlantsPlantIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/app': typeof AuthenticatedAppRoute
+  '/plants/new': typeof AuthenticatedPlantsNewRoute
+  '/plants': typeof AuthenticatedPlantsIndexRoute
+  '/plants/$plantId/edit': typeof AuthenticatedPlantsPlantIdEditRoute
+  '/plants/$plantId': typeof AuthenticatedPlantsPlantIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -50,13 +85,40 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/app': typeof AuthenticatedAppRoute
+  '/_authenticated/plants/new': typeof AuthenticatedPlantsNewRoute
+  '/_authenticated/plants/': typeof AuthenticatedPlantsIndexRoute
+  '/_authenticated/plants/$plantId/edit': typeof AuthenticatedPlantsPlantIdEditRoute
+  '/_authenticated/plants/$plantId/': typeof AuthenticatedPlantsPlantIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/app'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/app'
+    | '/plants/new'
+    | '/plants/'
+    | '/plants/$plantId/edit'
+    | '/plants/$plantId/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/app'
-  id: '__root__' | '/' | '/_authenticated' | '/auth' | '/_authenticated/app'
+  to:
+    | '/'
+    | '/auth'
+    | '/app'
+    | '/plants/new'
+    | '/plants'
+    | '/plants/$plantId/edit'
+    | '/plants/$plantId'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/_authenticated/app'
+    | '/_authenticated/plants/new'
+    | '/_authenticated/plants/'
+    | '/_authenticated/plants/$plantId/edit'
+    | '/_authenticated/plants/$plantId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -95,15 +157,51 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/plants/': {
+      id: '/_authenticated/plants/'
+      path: '/plants'
+      fullPath: '/plants/'
+      preLoaderRoute: typeof AuthenticatedPlantsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/plants/new': {
+      id: '/_authenticated/plants/new'
+      path: '/plants/new'
+      fullPath: '/plants/new'
+      preLoaderRoute: typeof AuthenticatedPlantsNewRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/plants/$plantId/': {
+      id: '/_authenticated/plants/$plantId/'
+      path: '/plants/$plantId'
+      fullPath: '/plants/$plantId/'
+      preLoaderRoute: typeof AuthenticatedPlantsPlantIdIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/plants/$plantId/edit': {
+      id: '/_authenticated/plants/$plantId/edit'
+      path: '/plants/$plantId/edit'
+      fullPath: '/plants/$plantId/edit'
+      preLoaderRoute: typeof AuthenticatedPlantsPlantIdEditRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAppRoute: typeof AuthenticatedAppRoute
+  AuthenticatedPlantsNewRoute: typeof AuthenticatedPlantsNewRoute
+  AuthenticatedPlantsIndexRoute: typeof AuthenticatedPlantsIndexRoute
+  AuthenticatedPlantsPlantIdEditRoute: typeof AuthenticatedPlantsPlantIdEditRoute
+  AuthenticatedPlantsPlantIdIndexRoute: typeof AuthenticatedPlantsPlantIdIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAppRoute: AuthenticatedAppRoute,
+  AuthenticatedPlantsNewRoute: AuthenticatedPlantsNewRoute,
+  AuthenticatedPlantsIndexRoute: AuthenticatedPlantsIndexRoute,
+  AuthenticatedPlantsPlantIdEditRoute: AuthenticatedPlantsPlantIdEditRoute,
+  AuthenticatedPlantsPlantIdIndexRoute: AuthenticatedPlantsPlantIdIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

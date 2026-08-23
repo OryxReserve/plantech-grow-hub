@@ -1,6 +1,6 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { Leaf, Droplets, Package } from "lucide-react";
+import { Leaf, Droplets, Package, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 import { LanguageSwitcher } from "@/components/language-switcher";
@@ -43,7 +43,6 @@ function AppShell() {
   }
 
   const sections: { key: TranslationKey; desc: TranslationKey; icon: typeof Leaf }[] = [
-    { key: "shell.plants", desc: "shell.plantsDesc", icon: Leaf },
     { key: "shell.careLog", desc: "shell.careLogDesc", icon: Droplets },
     { key: "shell.products", desc: "shell.productsDesc", icon: Package },
   ];
@@ -119,10 +118,27 @@ function AppShell() {
             </section>
 
             <section>
+              <Link
+                to="/plants"
+                className="flex items-center gap-3 rounded-xl border border-border p-4 transition-colors hover:bg-accent"
+              >
+                <Leaf className="size-5 text-primary" aria-hidden />
+                <span className="flex-1">
+                  <span className="block font-medium">{t("shell.plants")}</span>
+                  <span className="block text-sm text-muted-foreground">
+                    {t("shell.plantsDesc")}
+                  </span>
+                </span>
+                <ChevronRight className="size-4 text-muted-foreground" />
+              </Link>
+            </section>
+
+            <section>
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("shell.next")}
               </h2>
               <div className="grid gap-3">
+
                 {sections.map(({ key, desc, icon: Icon }) => (
                   <div
                     key={key}
