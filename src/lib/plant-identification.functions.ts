@@ -135,6 +135,8 @@ export const identifyPlantPhoto = createServerFn({ method: "POST" })
         tokensOut: result.usage.tokensOut,
         latencyMs: result.latencyMs,
         costUsd: result.usage.costUsd,
+        creditsUsed: result.usage.creditsUsed,
+        plantId: data.plantId ?? null,
         payload: {
           request_id: result.requestId,
           candidate_count: result.candidates.length,
@@ -169,6 +171,8 @@ export const identifyPlantPhoto = createServerFn({ method: "POST" })
         tokensOut: 0,
         latencyMs: Date.now() - startedAt,
         costUsd: null,
+        creditsUsed: 0,
+        plantId: data.plantId ?? null,
         payload: {
           error_category: category,
           plant_context: plantContext,
