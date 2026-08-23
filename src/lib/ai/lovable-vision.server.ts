@@ -215,6 +215,7 @@ export const lovableVisionProvider: AiVisionProvider = {
           tokensOut: outputTokens ?? 0,
           costUsd: null,
           usageReported,
+          creditsUsed: null,
         },
         requestId: gateway.getRunId() ?? null,
         latencyMs,
@@ -228,7 +229,7 @@ export const lovableVisionProvider: AiVisionProvider = {
           isPlant: true,
           model: LOVABLE_VISION_MODEL,
           provider: "lovable",
-          usage: { tokensIn: 0, tokensOut: 0, costUsd: null, usageReported: false },
+          usage: { tokensIn: 0, tokensOut: 0, costUsd: null, usageReported: false, creditsUsed: null },
           requestId: gateway.getRunId() ?? null,
           latencyMs: Date.now() - startedAt,
         };

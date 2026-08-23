@@ -15,6 +15,10 @@ export type AiUsageLogEntry = {
   tokensOut: number;
   latencyMs: number | null;
   costUsd: number | null;
+  /** Provider credits consumed by this attempt. 0 when nothing was billed. */
+  creditsUsed: number | null;
+  /** Set when the attempt was made against an existing plant. */
+  plantId: string | null;
   payload: {
     request_id?: string | null;
     candidate_count?: number;
@@ -56,6 +60,8 @@ export async function logAiUsage(entry: AiUsageLogEntry): Promise<boolean> {
       tokens_out: entry.tokensOut,
       latency_ms: entry.latencyMs,
       cost_usd: entry.costUsd,
+      credits_used: entry.creditsUsed ?? 0,
+      plant_id: entry.plantId,
       summarized_payload: clampPayload(entry.payload) as never,
     });
     if (error) {

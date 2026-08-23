@@ -58,6 +58,8 @@ export type AiVisionUsage = {
   costUsd: number | null;
   /** False when the provider did not report token usage; the zeros are placeholders. */
   usageReported: boolean;
+  /** Provider credits consumed, when the provider bills in credits. */
+  creditsUsed: number | null;
 };
 
 export type PlantIdentificationResult = {
