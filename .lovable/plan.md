@@ -1,86 +1,83 @@
-# Fase 2A — PLAN — Cuidado inicial pós-identificação
+# Fase 2B — Perfil contextual da planta
 
-Sem Build. Estado verificado no código: o fluxo de identificação termina em `navigate({ to: "/plants/$plantId" })` (`src/routes/_authenticated/plants.identify.tsx:262`), ou seja, o usuário sempre cai no perfil da planta logo após identificar/cadastrar.
+Complementa o guia geral da espécie (Fase 2A) com dados do ambiente real onde aquela planta específica vive. Nada de agenda, lembretes, IA ou recomendação nesta fase.
 
-## 1. Ponto de encaixe
+## 1. Diagnóstico do que já existe
 
-**No detalhe da planta**, não na tela final da identificação.
+- `plant_care_profile` já existe, é 1:1 com a planta, é escopada por `account_id` + `plant_id`, tem RLS por conta e trigger de `updated_at`. Hoje guarda apenas rega/luz/adubo em nível de intenção de cuidado (intervalos e notas).
+- `plants` guarda identidade e histórico: apelido, espécie, nome científico, local (texto livre), data de aquisição, notas.
+- `plant_care_log` existe com tipo `watering` e já é lido pela Timeline, mas ainda não tem caminho de escrita no app (a escrita é a Fase 2.3, fora daqui).
+- UI do perfil já é composta por cartões independentes: Hero, Cuidados iniciais (2A), Resumo de cuidados, Timeline, Detalhes da planta, Galeria. Cada bloco tem seu próprio cartão + Sheet de edição, então adicionar um bloco novo é incremental e não toca nos outros.
 
-Motivos:
-- A tela de identificação já é multi-step e efêmera; um bloco de cuidados ali seria visto uma vez e perdido.
-- O perfil já é o destino automático pós-identificação, então o usuário vê a orientação no mesmo instante — sem duplicar tela.
-- O mesmo bloco serve para plantas cadastradas manualmente e para plantas antigas, sem código extra.
+Conclusão: a separação "guia geral da espécie" (`species_care_guide`, global) x "contexto individual" (por planta) já está estruturalmente clara. Falta apenas onde guardar o contexto físico do ambiente.
 
-Posição na página: um card **"Cuidados iniciais"** logo abaixo do `PlantHero` e **acima** do `CareSummary`. O `CareSummary` continua sendo "o que você configurou"; o novo card é "o que se recomenda para esta espécie". Hierarquia visual deixa claro que um é sugestão e o outro é a configuração real do usuário.
+## 2. O schema atual basta?
 
-## 2. Origem do conteúdo — recomendação
+Não. `plant_care_profile` não tem nenhuma coluna para solo, drenagem, vaso, janela, luz percebida, ambiente ou data da última rega. `plants.notes` é texto livre e não serve como dado estruturado para a Fase 3.
 
-**IA 1x por espécie, com cache no banco** (`species_care_guide`), chave = nome científico normalizado + idioma.
+## 3. Menor mudança possível
 
-Comparação:
-- *Estático por espécie*: zero custo, mas exige curadoria manual e cobre uma fração das espécies que a Kindwise devolve. Inútil na cauda longa.
-- *IA 1x por planta*: custo linear no número de plantas; dez usuários com a mesma Monstera pagam dez vezes o mesmo texto.
-- *IA 1x por espécie com cache*: a primeira planta de uma espécie gera; todas as seguintes, em qualquer conta, leem do cache. Custo cai rápido, o texto fica estável e revisável, e o `ai_usage_log` continua registrando cada geração real.
+Estender a tabela `plant_care_profile` que já existe, sem criar tabela nova e sem tocar em RLS, grants ou políticas (as políticas atuais já cobrem colunas novas automaticamente).
 
-O cache é **global** (não por conta): é conhecimento botânico público, não dado do tenant. A tabela não tem `account_id` — leitura liberada para `authenticated`, escrita só via service role dentro do server fn. `plants`, `plant_care_profile` e tudo mais continuam intocados no isolamento por conta.
+Colunas adicionadas (todas opcionais):
 
-Sem nome científico (identificação só com nome comum, ou cadastro manual sem espécie): o card não aparece e mostra um estado vazio curto convidando a preencher a espécie. Nada de gerar guia a partir de apelido.
+- `soil_type` — texto curto controlado (ex.: substrato comum, cactos, orquídeas, terra de jardim, outro)
+- `drainage` — poor / medium / good
+- `pot_size_cm` — número inteiro pequeno (diâmetro em cm)
+- `window_distance_cm` — número inteiro
+- `window_orientation` — norte / sul / leste / oeste / sem janela
+- `perceived_light` — muito baixa / baixa / média / alta
+- `environment` — interno / externo / varanda ou estufa
+- `last_watered_at` — data informada manualmente pelo usuário
+- `context_note` — observação livre curta (limite ~280 caracteres)
 
-## 3. Schema
+Todas com valores controlados por CHECK, todas anuláveis, sem default. `last_watered_at` é declarativo agora; na Fase 3 ele vira semente do cálculo, e o histórico real continuará vindo de `plant_care_log`.
 
-Precisa de **uma tabela nova**, via SQL Editor:
+## 4. Arquivos que mudam
 
-`species_care_guide`
-- `id uuid pk`
-- `species_key text not null` — nome científico normalizado (minúsculas, sem acento, espaços colapsados)
-- `language app_language not null`
-- `scientific_name text not null` — como veio, para exibição
-- `water text`, `light text`, `fertilizing text`, `notes text` — textos curtos
-- `source text not null default 'ai'`, `model text`, `generated_at timestamptz`
-- `created_at` / `updated_at`
-- `unique (species_key, language)`
-- GRANT `SELECT` para `anon`/`authenticated` conforme política; `ALL` para `service_role`; RLS on com policy de leitura para `authenticated` e nenhuma policy de escrita (só service role).
+- `src/lib/plant-care-profile.ts` — adicionar as listas de valores, incluir as novas colunas no select e no tipo de input do upsert (mesma função de upsert já existente)
+- `src/components/plants/profile/plant-context-card.tsx` (novo) — cartão de leitura
+- `src/components/plants/profile/plant-context-sheet.tsx` (novo) — formulário de edição
+- `src/routes/_authenticated/plants.$plantId.index.tsx` — encaixar o cartão logo abaixo do bloco de cuidados
+- `src/i18n/translations.ts` — chaves em pt/en/es
 
-Nenhuma alteração em `plants`, `plant_care_profile`, `ai_usage_log` ou RLS existentes.
+Nada em `species-care.*`, identificação, provider de IA, timeline ou galeria.
 
-## 4. Arquivos afetados
+## 5. UX mínima
 
-Criar:
-- `src/lib/species-care.ts` — tipos + `queryOptions` de leitura do cache.
-- `src/lib/species-care.functions.ts` — `getSpeciesCareGuide` (`createServerFn` + `requireSupabaseAuth`): normaliza a chave, lê o cache, e só em miss chama o gerador.
-- `src/lib/ai/species-care.server.ts` — geração via Lovable AI Gateway (texto, não visão), saída em JSON estrito com os quatro campos, cada um limitado a ~240 caracteres.
-- `src/components/plants/profile/initial-care-card.tsx` — o card.
+Cartão "Ambiente da planta" abaixo do botão de configurar cuidados e acima da Timeline.
 
-Alterar:
-- `src/routes/_authenticated/plants.$plantId.index.tsx` — montar o card entre `PlantHero` e `CareSummary`.
-- `src/lib/ai/usage-log.server.ts` — aceitar `feature: 'species_care_guide'` (hoje a feature é constante fixa) e os campos de payload novos.
-- `src/i18n/translations.ts` — chaves em pt/en/es.
+```text
+Ambiente da planta                [Editar]
+Solo: substrato comum · Drenagem: boa
+Vaso: 18 cm · Ambiente: interno
+Janela: leste, a 80 cm · Luz percebida: média
+Última rega informada: 21/08/2026
+"Fica na cozinha, pega sol da manhã"
+```
 
-Não muda: fluxo de identificação, `kindwise.server.ts`, provider registry, `plant-care-profile`, Stripe.
+- Sem dados: estado vazio com uma linha explicativa e botão "Preencher ambiente".
+- Edição em Sheet de tela cheia mobile, campos agrupados em Solo e vaso / Luz e posição / Rega e observação.
+- Selects para os campos controlados, campos numéricos com teclado numérico, data com input nativo, textarea curto com contador.
+- Salvamento reaproveita o padrão atual: validação leve, toast de sucesso/erro, foco no primeiro campo inválido.
+- O cartão de Cuidados iniciais (espécie) mantém a legenda de "orientação geral"; o novo cartão é rotulado como dados desta planta específica, deixando a distinção explícita para o usuário.
 
-## 5. Menor escopo viável
+## 6. Riscos de escopo e o que fica fora
 
-- Só leitura + geração sob demanda. Nada de job, nada de pré-aquecimento.
-- Quatro campos de texto, nada estruturado (sem `interval_days`, sem enum de luz). Estruturar agora criaria dívida: a Fase 2 completa vai querer converter sugestão em configuração, e é melhor decidir o formato quando essa conversão existir.
-- Sem edição, sem versionamento, sem feedback do usuário sobre o texto.
-- Falha de geração = card não aparece, com uma linha de erro discreta e botão de tentar de novo. Nunca bloqueia o perfil.
-- Telemetria: uma linha em `ai_usage_log` por geração real (miss de cache), com `feature = 'species_care_guide'`. Cache hit não gera linha — é exatamente o sinal de economia que a monetização vai querer ler depois.
+Riscos:
+- Tentação de calcular "próxima rega" a partir de `last_watered_at` — não nesta fase.
+- Tentação de alimentar a IA com o contexto — não nesta fase.
+- Duplicidade entre `plants.location` (texto livre) e os novos campos: mantemos `plants.location` como está e o novo bloco como dado estruturado; sem migração de dados.
+- Crescimento de formulário: todos os campos são opcionais e o cartão só mostra o que estiver preenchido.
 
-## 6. UX/UI mobile-first
+Fora desta fase: agenda, lembretes, notificações, tarefas recorrentes, inferência de frequência, engine de recomendação, nova chamada de IA, escrita em `plant_care_log`, produtos/insumos, diagnóstico por imagem e qualquer alteração em `species_care_guide` ou no fluxo de identificação.
 
-Card no mesmo estilo dos existentes (`rounded-2xl border bg-card`), com:
-- Título "Cuidados iniciais" e uma linha de subtítulo deixando explícito que é orientação geral para a espécie, não rotina da sua planta.
-- Quatro linhas com ícone: gota (água), sol (luz), folha (fertilização), alerta (sinais de atenção). Cada uma com rótulo curto e uma a duas frases.
-- Estado de carregamento com skeleton das quatro linhas.
-- Rodapé com o nome científico usado como base e uma nota curta de que condições locais mandam mais que a média.
-- Sem tabs, sem accordion, sem CTA para agenda. O botão de configurar cuidado que já existe permanece onde está e continua sendo o único caminho para a configuração real.
+## Ponte para a Fase 3
 
-## 7. Relação com Fase 2 completa e Fase 3
+Ao final da 2B, a Fase 3 terá tudo em uma única linha por planta: intenção de cuidado (intervalos já existentes), contexto físico (novas colunas) e uma âncora temporal (`last_watered_at`), sem precisar de novo schema para começar o cronograma.
 
-- **Fase 2A (esta)**: conhecimento genérico por espécie, só leitura, sem estado por planta.
-- **Fase 2 completa**: transformar sugestão em configuração real — um "aplicar ao meu cuidado" que preenche `plant_care_profile`, e o registro de eventos em `plant_care_log`. Depende dos campos estruturados, que ficam para lá de propósito.
-- **Fase 3**: agenda, lembretes, diagnóstico de saúde, produtos. Nada disso lê `species_care_guide` diretamente — lê o `plant_care_profile` que o usuário confirmou. A fronteira é essa: 2A informa, 2 configura, 3 automatiza.
+## Detalhes técnicos
 
-## 8. Ponto que precisa de decisão antes do Build
-
-O guia gerado é armazenado por idioma. Se a mesma espécie for aberta em pt e en, são duas gerações (dois créditos). A alternativa é gerar num idioma e traduzir, o que economiza mas adiciona um segundo passo de IA. Recomendação: **gerar por idioma**, simples e direto, já que o volume real de idiomas por espécie tende a ser 1.
+- Uma migração aditiva com `ALTER TABLE public.plant_care_profile ADD COLUMN ... NULL` e CHECKs por valor; sem novas policies, sem novos grants, sem alterar `is_account_member`.
+- O upsert continua usando `onConflict: "plant_id"` e recebendo `account_id` do contexto ativo, nunca da URL.
+- A query key `plant-care-profile/{accountId}/{plantId}` já existente é reutilizada; um único fetch alimenta os dois cartões.
