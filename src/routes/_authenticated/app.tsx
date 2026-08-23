@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { Leaf, Droplets, Package, ChevronRight } from "lucide-react";
+import { Leaf, Droplets, Package, ChevronRight, ScanLine } from "lucide-react";
 import { toast } from "sonner";
 
 import { LanguageSwitcher } from "@/components/language-switcher";
@@ -117,7 +117,13 @@ function AppShell() {
               )}
             </section>
 
-            <section>
+            <section className="space-y-3">
+              <Button asChild className="h-12 w-full text-base">
+                <Link to="/plants/identify">
+                  <ScanLine className="size-5" aria-hidden />
+                  {t("identify.cta")}
+                </Link>
+              </Button>
               <Link
                 to="/plants"
                 className="flex items-center gap-3 rounded-xl border border-border p-4 transition-colors hover:bg-accent"

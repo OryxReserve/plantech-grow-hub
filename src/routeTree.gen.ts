@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedPlantsIndexRouteImport } from './routes/_authenticated/plants.index'
+import { Route as AuthenticatedPlantsIdentifyRouteImport } from './routes/_authenticated/plants.identify'
 import { Route as AuthenticatedPlantsNewRouteImport } from './routes/_authenticated/plants.new'
 import { Route as AuthenticatedPlantsPlantIdIndexRouteImport } from './routes/_authenticated/plants.$plantId.index'
 import { Route as AuthenticatedPlantsPlantIdEditRouteImport } from './routes/_authenticated/plants.$plantId.edit'
@@ -43,6 +44,12 @@ const AuthenticatedPlantsIndexRoute =
     path: '/plants/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedPlantsIdentifyRoute =
+  AuthenticatedPlantsIdentifyRouteImport.update({
+    id: '/plants/identify',
+    path: '/plants/identify',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedPlantsNewRoute = AuthenticatedPlantsNewRouteImport.update({
   id: '/plants/new',
   path: '/plants/new',
@@ -65,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/app': typeof AuthenticatedAppRoute
+  '/plants/identify': typeof AuthenticatedPlantsIdentifyRoute
   '/plants/new': typeof AuthenticatedPlantsNewRoute
   '/plants/': typeof AuthenticatedPlantsIndexRoute
   '/plants/$plantId/edit': typeof AuthenticatedPlantsPlantIdEditRoute
@@ -74,6 +82,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/app': typeof AuthenticatedAppRoute
+  '/plants/identify': typeof AuthenticatedPlantsIdentifyRoute
   '/plants/new': typeof AuthenticatedPlantsNewRoute
   '/plants': typeof AuthenticatedPlantsIndexRoute
   '/plants/$plantId/edit': typeof AuthenticatedPlantsPlantIdEditRoute
@@ -85,6 +94,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/app': typeof AuthenticatedAppRoute
+  '/_authenticated/plants/identify': typeof AuthenticatedPlantsIdentifyRoute
   '/_authenticated/plants/new': typeof AuthenticatedPlantsNewRoute
   '/_authenticated/plants/': typeof AuthenticatedPlantsIndexRoute
   '/_authenticated/plants/$plantId/edit': typeof AuthenticatedPlantsPlantIdEditRoute
@@ -96,6 +106,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/app'
+    | '/plants/identify'
     | '/plants/new'
     | '/plants/'
     | '/plants/$plantId/edit'
@@ -105,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/app'
+    | '/plants/identify'
     | '/plants/new'
     | '/plants'
     | '/plants/$plantId/edit'
@@ -115,6 +127,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/app'
+    | '/_authenticated/plants/identify'
     | '/_authenticated/plants/new'
     | '/_authenticated/plants/'
     | '/_authenticated/plants/$plantId/edit'
@@ -164,6 +177,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPlantsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/plants/identify': {
+      id: '/_authenticated/plants/identify'
+      path: '/plants/identify'
+      fullPath: '/plants/identify'
+      preLoaderRoute: typeof AuthenticatedPlantsIdentifyRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/plants/new': {
       id: '/_authenticated/plants/new'
       path: '/plants/new'
@@ -190,6 +210,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAppRoute: typeof AuthenticatedAppRoute
+  AuthenticatedPlantsIdentifyRoute: typeof AuthenticatedPlantsIdentifyRoute
   AuthenticatedPlantsNewRoute: typeof AuthenticatedPlantsNewRoute
   AuthenticatedPlantsIndexRoute: typeof AuthenticatedPlantsIndexRoute
   AuthenticatedPlantsPlantIdEditRoute: typeof AuthenticatedPlantsPlantIdEditRoute
@@ -198,6 +219,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAppRoute: AuthenticatedAppRoute,
+  AuthenticatedPlantsIdentifyRoute: AuthenticatedPlantsIdentifyRoute,
   AuthenticatedPlantsNewRoute: AuthenticatedPlantsNewRoute,
   AuthenticatedPlantsIndexRoute: AuthenticatedPlantsIndexRoute,
   AuthenticatedPlantsPlantIdEditRoute: AuthenticatedPlantsPlantIdEditRoute,
