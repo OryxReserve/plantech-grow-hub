@@ -1,13 +1,9 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Leaf, Droplets, Package, ChevronRight, ScanLine } from "lucide-react";
-import { toast } from "sonner";
 
-import { LanguageSwitcher } from "@/components/language-switcher";
 import { Button } from "@/components/ui/button";
 import { useActiveAccount, type AccountRole } from "@/context/active-account";
 import { useI18n } from "@/i18n/i18n";
-import { supabase } from "@/integrations/supabase/client";
 import type { TranslationKey } from "@/i18n/translations";
 
 export const Route = createFileRoute("/_authenticated/app")({
@@ -22,8 +18,6 @@ const roleKey: Record<AccountRole, TranslationKey> = {
 
 function AppShell() {
   const { t } = useI18n();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const {
     user,
     profile,
@@ -34,13 +28,6 @@ function AppShell() {
     isLoading,
   } = useActiveAccount();
 
-  async function handleSignOut() {
-    await queryClient.cancelQueries();
-    queryClient.clear();
-    await supabase.auth.signOut();
-    toast.success(t("auth.signedOut"));
-    navigate({ to: "/auth", replace: true });
-  }
 
   const sections: { key: TranslationKey; desc: TranslationKey; icon: typeof Leaf }[] = [
     { key: "shell.careLog", desc: "shell.careLogDesc", icon: Droplets },
@@ -48,17 +35,7 @@ function AppShell() {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="flex items-center justify-between border-b border-border px-5 py-4">
-        <span className="text-lg font-semibold tracking-tight">{t("app.name")}</span>
-        <div className="flex items-center gap-2">
-          <LanguageSwitcher />
-          <Button variant="ghost" size="sm" onClick={handleSignOut}>
-            {t("shell.signOut")}
-          </Button>
-        </div>
-      </header>
-
+    <div>
       <main className="mx-auto w-full max-w-2xl space-y-6 px-5 py-6">
         {isLoading ? (
           <p className="text-sm text-muted-foreground">{t("shell.loading")}</p>

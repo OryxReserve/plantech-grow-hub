@@ -7,24 +7,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useI18n } from "@/i18n/i18n";
-import { LOCALES, LOCALE_LABELS } from "@/i18n/translations";
+import { LOCALES, LOCALE_LABELS, headTranslate } from "@/i18n/translations";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Entrar | Plantech" },
-      {
-        name: "description",
-        content:
-          "Acesse o Plantech para gerenciar suas plantas, registros de cuidado e produtos da sua conta.",
-      },
-      { property: "og:title", content: "Entrar | Plantech" },
-      {
-        property: "og:description",
-        content: "Acesse o Plantech e cuide das suas plantas com método.",
-      },
+      { title: headTranslate("meta.auth.title") },
+      { name: "description", content: headTranslate("meta.auth.description") },
+      { property: "og:title", content: headTranslate("meta.auth.title") },
+      { property: "og:description", content: headTranslate("meta.auth.ogDescription") },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

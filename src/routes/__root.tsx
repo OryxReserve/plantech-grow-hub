@@ -13,6 +13,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/components/ui/sonner";
 import { I18nProvider } from "@/i18n/i18n";
+import { headTranslate } from "@/i18n/translations";
 import { supabase } from "@/integrations/supabase/client";
 
 
@@ -81,17 +82,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Plantech" },
-      {
-        name: "description",
-        content:
-          "Plantech — cuidado de plantas, jardim e armário de produtos, multi-conta e mobile-first.",
-      },
-      { property: "og:title", content: "Plantech" },
-      {
-        property: "og:description",
-        content: "Cuidado de plantas, jardim e produtos em um app mobile-first.",
-      },
+      { title: headTranslate("meta.root.title") },
+      { name: "description", content: headTranslate("meta.root.description") },
+      { property: "og:title", content: headTranslate("meta.root.title") },
+      { property: "og:description", content: headTranslate("meta.root.ogDescription") },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

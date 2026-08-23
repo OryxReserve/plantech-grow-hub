@@ -2,22 +2,15 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useI18n } from "@/i18n/i18n";
+import { headTranslate } from "@/i18n/translations";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Plantech — cuidado de plantas e jardim" },
-      {
-        name: "description",
-        content:
-          "Plantech organiza suas plantas, o histórico de cuidados e o armário de produtos da sua conta em um app mobile-first.",
-      },
-      { property: "og:title", content: "Plantech — cuidado de plantas e jardim" },
-      {
-        property: "og:description",
-        content:
-          "Registre plantas, acompanhe cuidados e gerencie produtos em um só lugar.",
-      },
+      { title: headTranslate("meta.landing.title") },
+      { name: "description", content: headTranslate("meta.landing.description") },
+      { property: "og:title", content: headTranslate("meta.landing.title") },
+      { property: "og:description", content: headTranslate("meta.landing.ogDescription") },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

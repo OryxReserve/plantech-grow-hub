@@ -12,6 +12,21 @@ const dictionaries = {
     "app.name": "Plantech",
     "app.tagline": "Cuide das suas plantas com método.",
 
+    "meta.root.title": "Plantech",
+    "meta.root.description":
+      "Plantech — cuidado de plantas, jardim e armário de produtos, multi-conta e mobile-first.",
+    "meta.root.ogDescription":
+      "Cuidado de plantas, jardim e produtos em um app mobile-first.",
+    "meta.landing.title": "Plantech — cuidado de plantas e jardim",
+    "meta.landing.description":
+      "Plantech organiza suas plantas, o histórico de cuidados e o armário de produtos da sua conta em um app mobile-first.",
+    "meta.landing.ogDescription":
+      "Registre plantas, acompanhe cuidados e gerencie produtos em um só lugar.",
+    "meta.auth.title": "Entrar | Plantech",
+    "meta.auth.description":
+      "Acesse o Plantech para gerenciar suas plantas, registros de cuidado e produtos da sua conta.",
+    "meta.auth.ogDescription": "Acesse o Plantech e cuide das suas plantas com método.",
+
     "landing.heading": "Seu jardim, organizado.",
     "landing.body":
       "Registre plantas, acompanhe cuidados e mantenha o armário de produtos da sua conta em um só lugar.",
@@ -320,6 +335,20 @@ const dictionaries = {
     "app.name": "Plantech",
     "app.tagline": "Care for your plants with method.",
 
+    "meta.root.title": "Plantech",
+    "meta.root.description":
+      "Plantech — plant care, garden and product cabinet, multi-account and mobile-first.",
+    "meta.root.ogDescription": "Plant care, garden and products in a mobile-first app.",
+    "meta.landing.title": "Plantech — plant and garden care",
+    "meta.landing.description":
+      "Plantech organizes your plants, their care history and your account's product cabinet in a mobile-first app.",
+    "meta.landing.ogDescription":
+      "Track plants, log care and manage products in one place.",
+    "meta.auth.title": "Sign in | Plantech",
+    "meta.auth.description":
+      "Sign in to Plantech to manage your plants, care logs and your account's products.",
+    "meta.auth.ogDescription": "Sign in to Plantech and care for your plants with method.",
+
     "landing.heading": "Your garden, organized.",
     "landing.body":
       "Track plants, log care and keep your account's product cabinet in one place.",
@@ -625,6 +654,21 @@ const dictionaries = {
   es: {
     "app.name": "Plantech",
     "app.tagline": "Cuida tus plantas con método.",
+
+    "meta.root.title": "Plantech",
+    "meta.root.description":
+      "Plantech — cuidado de plantas, jardín y armario de productos, multicuenta y mobile-first.",
+    "meta.root.ogDescription":
+      "Cuidado de plantas, jardín y productos en una app mobile-first.",
+    "meta.landing.title": "Plantech — cuidado de plantas y jardín",
+    "meta.landing.description":
+      "Plantech organiza tus plantas, el historial de cuidados y el armario de productos de tu cuenta en una app mobile-first.",
+    "meta.landing.ogDescription":
+      "Registra plantas, sigue los cuidados y gestiona productos en un solo lugar.",
+    "meta.auth.title": "Entrar | Plantech",
+    "meta.auth.description":
+      "Entra en Plantech para gestionar tus plantas, registros de cuidado y productos de tu cuenta.",
+    "meta.auth.ogDescription": "Entra en Plantech y cuida tus plantas con método.",
 
     "landing.heading": "Tu jardín, organizado.",
     "landing.body":
@@ -935,4 +979,27 @@ export type TranslationKey = keyof (typeof dictionaries)["en"];
 
 export function translate(locale: Locale, key: TranslationKey): string {
   return dictionaries[locale][key] ?? dictionaries.en[key] ?? key;
+}
+
+export const LOCALE_STORAGE_KEY = "plantech.locale";
+export const DEFAULT_LOCALE: Locale = "pt";
+
+export function isLocale(value: unknown): value is Locale {
+  return typeof value === "string" && (LOCALES as readonly string[]).includes(value);
+}
+
+/**
+ * Locale used by non-reactive contexts such as route `head()`, which cannot
+ * use React hooks. Falls back to the default locale during SSR.
+ */
+export function getHeadLocale(): Locale {
+  if (typeof window === "undefined") return DEFAULT_LOCALE;
+  const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY);
+  if (isLocale(stored)) return stored;
+  const browser = window.navigator.language.slice(0, 2);
+  return isLocale(browser) ? browser : DEFAULT_LOCALE;
+}
+
+export function headTranslate(key: TranslationKey): string {
+  return translate(getHeadLocale(), key);
 }
