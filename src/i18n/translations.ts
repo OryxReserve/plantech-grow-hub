@@ -492,6 +492,8 @@ const dictionaries = {
     "identify.rejectAll": "Ninguna coincide",
     "identify.uncertainTitle": "Sin identificaci\u00f3n fiable",
     "identify.uncertainBody": "El modelo no pudo identificar la planta con seguridad. Prueba otra foto o completa los datos manualmente.",
+    "identify.notPlantTitle": "No parece ser una planta",
+    "identify.notPlantBody": "La foto no muestra claramente una planta. Envía una imagen con hojas, flores o la planta completa para identificarla.",
     "identify.errorTitle": "No se pudo analizar",
     "identify.error.rateLimited": "Demasiadas solicitudes en poco tiempo. Espera un momento e int\u00e9ntalo de nuevo.",
     "identify.error.noCredits": "El espacio se qued\u00f3 sin cr\u00e9ditos de IA. A\u00f1ade cr\u00e9ditos para continuar.",
