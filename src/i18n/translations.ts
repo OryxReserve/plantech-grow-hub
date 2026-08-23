@@ -312,6 +312,8 @@ const dictionaries = {
     "identify.rejectAll": "None of these match",
     "identify.uncertainTitle": "No confident identification",
     "identify.uncertainBody": "The model could not identify the plant with confidence. Try another photo or fill in the details manually.",
+    "identify.notPlantTitle": "This doesn't look like a plant",
+    "identify.notPlantBody": "The photo doesn't clearly show a plant. Send an image with leaves, flowers, or the whole plant so we can identify it.",
     "identify.errorTitle": "Analysis failed",
     "identify.error.rateLimited": "Too many requests in a short time. Wait a moment and try again.",
     "identify.error.noCredits": "The workspace ran out of AI credits. Add credits to continue.",
