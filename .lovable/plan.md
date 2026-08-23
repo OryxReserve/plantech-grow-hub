@@ -1,59 +1,92 @@
-# Fase 1.2 — QA dirigido pós-BUILD
+# Fase 2 — Perfil Individual da Planta (Plan)
 
-Revisão apenas de leitura dos quatro arquivos do escopo. Resultado: **implementação consistente em 5 dos 6 itens do checklist; há 1 gap real (item 2, `isPlant === false`) e 2 edge cases menores.**
+## 1. Estado atual encontrado no código
 
-## 1. Candidato útil — OK
+Base já existente e reaproveitável:
 
-Regra aplicada em dois pontos, coerentes entre si:
-- Provider (`mapCandidates`): filtra por `commonName || scientificName` após `trim`, com `commonName` normalizado para `""` e `scientificName` para `null`.
-- Rota (`runAnalysis`): re-filtra por `commonName?.trim() || scientificName?.trim()`.
+- `src/routes/_authenticated/plants.$plantId.index.tsx` — tela de detalhe atual: lista simples de campos (`Field`), botão de re-identificar, galeria de fotos e exclusão. É a base direta do perfil.
+- `src/components/plants/photo-gallery.tsx` — galeria com foto primária (`is_primary`) e signed URLs; serve para o card de topo.
+- `src/components/plants/plant-form.tsx` + `plants.$plantId.edit.tsx` — edição dos campos básicos (apelido, espécie, científico, local, aquisição, notas).
+- `src/components/plants/screen.tsx` — shell mobile-first com título/voltar/ação.
+- `src/lib/plants.ts` — query keys e CRUD já 100% escopados por `account_id` (`plantsListQuery`, `plantDetailQuery`, `createPlant`, `updatePlant`, `deletePlant`).
+- `src/lib/plant-photos.ts` — upload/signed URL/primary/delete.
+- `src/lib/ai/*` — `AiVisionProvider`, gateway Lovable, `usage-log.server.ts` (insert server-side via admin), stub LogoriOn. Reutilizável para gerar texto de espécie/FAQ.
+- `src/lib/plant-identification.functions.ts` — padrão pronto de server function com `requireSupabaseAuth` + validação de posse do `plant_id`.
+- `src/i18n/translations.ts` — pt/en/es, chaves `plants.*`, `field.*`, `identify.*`.
 
-Nenhum outro atributo (confiança, rank, `broadOnly`, `note`) participa do descarte.
+Dados já existentes no banco: `plants` (nickname, species_name, scientific_name, location, acquired_at, notes, is_archived), `plant_photos`, `plant_care_log` (tabela existe, **sem nenhum uso no código hoje**), `products`, `ai_usage_log`.
 
-## 2. Roteamento final — GAP REAL
+## 2. Gaps de dados
 
-- Lista com ≥1 candidato útil vai para `result`: OK.
-- `broadOnly`, `rank` e `confidence: null` não derrubam para `uncertain`: OK (não são lidos na decisão).
-- **`isPlant === false` não existe como fluxo próprio.** O provider retorna `isPlant`, a server function o repassa (`plant-identification.functions.ts`), mas `plants.identify.tsx` nunca lê `result.isPlant`. Consequências:
-  - Foto sem planta hoje só cai em `uncertain` por efeito colateral de a lista vir vazia, com copy genérica ("Sem identificação confiável" / "tente outra foto"), não "isto não parece uma planta".
-  - Se o modelo marcar `isPlant: false` e ainda assim devolver algum candidato (possível: o schema permite), a tela mostra `result` com hipótese botânica sobre uma foto não vegetal.
+Faltam para a UX mínima da Fase 2:
 
-Correção mínima sugerida (sem schema novo, sem IA extra): na rota, tratar `result.isPlant === false` antes do cálculo de `useful` — descartar candidatos e ir para `uncertain` usando um par de chaves de copy específicas (`identify.notPlantTitle` / `identify.notPlantBody`) nas três línguas.
+| Necessidade da Fase 2 | Existe? | Gap |
+|---|---|---|
+| Foto de capa + apelido + espécie no card | Sim | apenas UI |
+| Indicador visual de status | Não | precisa de referência de rega (último evento + intervalo) |
+| Aba Água (intervalo, volume, última rega) | Não | campos de cuidado por planta |
+| Aba Luz (exposição, orientação) | Não | campos de cuidado por planta |
+| Aba Fertilizante (tipo, intervalo, último) | Não | campos de cuidado por planta |
+| "Sobre a espécie" (texto gerado 1x, cacheado) | Não | tabela de cache por espécie/planta |
+| FAQ por planta gerada 1x por IA e cacheada | Não | tabela de cache + status de geração |
+| Registro de rega/fertilização (para status) | Parcial | `plant_care_log` existe, sem camada de acesso nem UI |
 
-## 3. Fallback visual e confirmação — OK
+## 3. Gaps de UI/UX
 
-- `result-step.tsx`: `primaryLabel = commonName || scientificName`; `secondaryLabel` só aparece quando o científico difere do rótulo primário, portanto candidato só-científico não duplica a linha.
-- `goToConfirm`: mesmo fallback; `scientificName` preenchido com `""` quando ausente. Não há acesso não guardado — não quebra com apenas um dos nomes.
-- Edge case menor: quando existe só `scientificName`, ele é copiado para `nickname` e `speciesName`. É aceitável e editável, mas o apelido nasce em latim. Não é bug.
+- Detalhe atual é uma lista plana, sem hierarquia de card/hero.
+- Sem componente de abas (Água / Luz / Fertilizante) — `@/components/ui/tabs` do shadcn já está disponível.
+- Sem edição granular por aba (hoje só um formulário único).
+- Sem seção "Sobre a espécie" nem FAQ acordeão.
+- Sem badge de status ("em dia" / "regar em breve" / "atrasada") derivado de dados.
 
-## 4. Identificação ampla — OK
+## 4. O que é SQL Editor (antes do Build)
 
-- `broad = broadOnly || rank === "genus"`, mesma tela `result`.
-- Sinalização dupla: bloco de nota `identify.genusOnlyNote` + badge `identify.broadBadge` (presente em pt/en/es).
-- `broadOnly` também é inferido no provider quando o modelo omite o campo e o rank é `genus`.
-- Edição manual continua disponível pelo botão `identify.rejectAll` → `handleManualFallback`.
+Apenas duas mudanças de estrutura, ambas multi-tenant por `account_id` com RLS e GRANTs no mesmo padrão das tabelas atuais:
 
-## 5. Fallback de parse (`NoObjectGeneratedError`) — OK
+1. `plant_care_profile` — 1:1 com `plants` (`plant_id` único, `account_id` obrigatório, FK composta `(plant_id, account_id)` como em `plant_photos`):
+   - água: `watering_interval_days int`, `watering_amount_note text`
+   - luz: `light_exposure text` (enum textual controlado na app: low/medium/bright_indirect/direct), `light_note text`
+   - fertilizante: `fertilizing_interval_days int`, `fertilizer_type text`, `fertilizing_note text`
+   - `created_at/updated_at` + trigger `set_updated_at`
+2. `plant_ai_content` — cache de conteúdo gerado por IA, 1 linha por (planta, tipo):
+   - `account_id`, `plant_id`, `kind text` ('species_overview' | 'faq'), `content jsonb`, `model text`, `generated_at`
+   - `UNIQUE (plant_id, kind)` — garante geração única e impede repetir chamada
+   - RLS: SELECT para membros da conta; INSERT/UPDATE **somente server-side** (service_role), igual ao padrão de `ai_usage_log`
 
-- `salvageCandidates` extrai do primeiro `{` ao último `}`, faz `JSON.parse` dentro de `try/catch` e valida com `ResultSchema.partial()`. Texto solto ou prosa não vira candidato: sem `{...}` válido → `[]`.
-- Não há segunda chamada de IA; o caminho é puramente local.
-- Sem JSON aproveitável → `candidates: []` → a rota cai em `uncertain`. Conservador, como pedido.
-- Risco de "lixo textual" é baixo: qualquer candidato salvo ainda precisa passar por `mapCandidates` (nome não vazio) e o Zod rejeita tipos errados.
-- Edge case menor: o retorno de salvamento fixa `isPlant: true` e `usage` zerada. Aceitável, mas significa que um salvamento nunca poderá acionar o fluxo "não é planta" do item 2, e o `ai_usage_log` registra 0 tokens nesse caminho (já era assim na Fase 1).
+`plant_care_log` já existe e **não precisa de alteração** — será só consumido.
+`ai_usage_log` permanece inalterado (a geração de texto reaproveita o log existente).
 
-## 6. QA por cenários (validação lógica)
+## 5. O que é Build
 
-| Cenário | Resultado esperado | Hoje |
-| --- | --- | --- |
-| Espécie provável com nome popular + científico | `result`, rótulo popular, científico em itálico | OK |
-| Espécie provável só com científico | `result`, científico como rótulo, sem linha duplicada | OK |
-| Resultado amplo por gênero | `result` + badge "Identificação ampla" + nota | OK |
-| Não planta (lista vazia) | mensagem clara de "não é planta" | Parcial — cai em `uncertain` com copy genérica |
-| Não planta com candidato devolvido | não mostrar hipótese | **Falha** — vai para `result` |
-| Texto malformado sem JSON útil | `uncertain` | OK |
+Somente UI + camada de dados cliente/servidor:
 
-## Conclusão
+- `src/lib/plant-care-profile.ts` — query/upsert escopado por `account_id`.
+- `src/lib/plant-care-log.ts` — últimos eventos por tipo + registro rápido de rega/fertilização.
+- `src/components/plants/profile/*` — hero card, badge de status, abas, editores por aba.
+- `src/lib/plant-ai-content.functions.ts` — server function de geração 1x com leitura de cache antes de chamar IA.
+- i18n pt/en/es das novas chaves.
 
-Único ajuste que vale um BUILD cirúrgico: consumir `result.isPlant` na rota e adicionar a copy de "não é planta" em pt/en/es. Os demais itens do checklist estão cobertos; os dois edge cases apontados são cosméticos e não exigem mudança.
+## 6. Escopo mínimo recomendado para Fase 2.1
 
-Arquivos afetados por esse ajuste: `src/routes/_authenticated/plants.identify.tsx`, `src/i18n/translations.ts`. Sem schema novo, sem chamada extra de IA, sem refactor.
+**Fase 2.1 (primeiro BUILD, sem IA):**
+- SQL: criar `plant_care_profile`.
+- Redesenhar `plants.$plantId.index.tsx` como perfil: hero card (foto primária + apelido + espécie + badge de status) e abas Água / Luz / Fertilizante.
+- Ler/salvar `plant_care_profile` com edição granular por aba (sheet/dialog por aba, sem sair da tela).
+- Badge de status derivado de `watering_interval_days` + último evento `watering` de `plant_care_log`, com ação "Registrar rega" (insert simples). Sem lembrete, sem agenda, sem push — apenas estado presente.
+
+**Fase 2.2:** SQL `plant_ai_content` + seção "Sobre a espécie" gerada 1x e cacheada.
+
+**Fase 2.3:** FAQ por planta (mesma tabela, `kind='faq'`), acordeão, geração 1x sob demanda.
+
+## 7. Riscos e decisões pendentes
+
+Riscos:
+- **Fronteira com a Fase 3:** o badge de status é o ponto de contágio. Regra fixa: Fase 2 só calcula estado no momento da visualização; nada de agendamento, notificação ou job.
+- **Acoplamento IA/perfil:** manter a geração isolada em server function com cache-first; falha de IA não pode quebrar o perfil (seção degrada para vazio).
+- **Custo de IA:** `UNIQUE (plant_id, kind)` + leitura de cache antes da chamada evita regeneração; sem botão de "regenerar" na Fase 2.
+- **Plantas sem espécie identificada:** "Sobre a espécie" e FAQ precisam de fallback quando `species_name` e `scientific_name` estão vazios.
+
+Decisões pendentes (não bloqueiam a 2.1):
+1. Cache de espécie por planta (mais simples, mais chamadas) ou por espécie compartilhada na conta (menos chamadas, mais complexidade). Recomendação: por planta na 2.2.
+2. Registro rápido de rega/fertilização entra já na 2.1 (recomendado, é o que dá sentido ao badge) ou fica para depois.
+3. Enum de luz como `text` validado na app (recomendado, evita migração de enum futura) ou enum Postgres.
