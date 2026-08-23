@@ -1,76 +1,67 @@
-# Fase 2.1 — Perfil Individual da Planta (UI)
+# Fase 2.2 — Detalhes da planta no perfil individual
 
-Transformar a tela de detalhe atual (lista simples de campos) em um perfil de acompanhamento: cabeçalho com foto, abas de cuidado (Água, Luz, Fertilizante), edição dos cuidados e timeline de leitura.
+## 1. Schema/estado atual encontrado
 
-## 1. Rotas e arquivos
+Campos existentes hoje em `plants` (verificados no schema e em `src/lib/plants.ts`):
 
-Rota mantida: `/plants/$plantId` (`src/routes/_authenticated/plants.$plantId.index.tsx`). Sem rotas novas — a edição de cuidados acontece em um Sheet na própria tela.
+| Campo | Tipo | Usado hoje |
+| --- | --- | --- |
+| `nickname` | text (obrigatório) | criar, editar, hero, lista de campos |
+| `species_name` | text | criar, editar, hero, lista |
+| `scientific_name` | text | criar, editar, hero, lista |
+| `location` | text livre | criar, editar, lista |
+| `acquired_at` | date | criar, editar, lista |
+| `notes` | text | criar, editar, lista |
+| `is_archived` | boolean | apenas filtro na listagem (sem UI) |
+| `created_at` / `updated_at` | timestamp | `created_at` exibido como "adicionado em" |
 
-Alterar:
-- `src/routes/_authenticated/plants.$plantId.index.tsx` — nova composição (hero + abas + timeline), mantendo estados de loading/erro/404 e o fluxo de excluir/editar já existentes.
-- `src/i18n/translations.ts` — novas chaves pt/en/es para abas, campos de cuidado, tipos do log, estados vazios e mensagens de sucesso/erro.
+Onde esses campos aparecem hoje:
+- `src/routes/_authenticated/plants.$plantId.index.tsx` — bloco final de leitura (`Field`) com apelido, espécie, nome científico, localização, data de aquisição, notas e data de criação.
+- `src/routes/_authenticated/plants.$plantId.edit.tsx` — formulário de edição em rota separada.
+- `src/routes/_authenticated/plants.new.tsx` — criação.
+- `src/components/plants/profile/plant-hero.tsx` — apelido + espécie/científico.
+- Fase 2.1 (`care-summary`, `care-profile-sheet`, `care-timeline`) trata só `plant_care_profile` e `plant_care_log`.
+
+Campos pedidos que **não existem** no schema atual e não podem entrar no BUILD 2.2 sem SQL futuro: indoor/outdoor, tamanho do vaso, tipo de vaso, drenagem, tipo de solo, distância da janela, orientação da janela, data da última rega (só derivável de `plant_care_log`, que está fora de escopo).
+
+## 2. Escopo recomendado para Fase 2.2 (sem SQL)
+
+Bloco novo "Detalhes da planta" na própria rota `/plants/$plantId`, logo abaixo da timeline, substituindo o bloco `Field` solto atual:
+
+- Card com título, resumo dos detalhes em pares rótulo/valor e botão "Editar detalhes".
+- Edição em **Sheet** (mesmo padrão visual e de feedback do `CareProfileSheet`: toast de sucesso, toast de erro, sheet permanece aberto em falha).
+- Campos editáveis agora: `nickname` (obrigatório), `species_name`, `scientific_name`, `location`, `acquired_at`, `notes`.
+- Somente leitura no card: `created_at`.
+- A rota `/plants/$plantId/edit` continua existindo e funcionando (sem remoção), para não quebrar links; o Sheet passa a ser o caminho principal a partir do perfil.
+
+Explicitamente fora de escopo: qualquer campo estruturado de vaso/solo/janela/indoor-outdoor, última rega, arquivar planta, IA, FAQ, "sobre a espécie", cálculo de saúde, próxima rega, lembretes, alterações em `plant_care_log` e `plant_care_profile`.
+
+## 3. Arquivos e abordagem
 
 Criar:
-- `src/lib/plant-care-profile.ts` — query + upsert do `plant_care_profile`.
-- `src/lib/plant-care-log.ts` — query somente leitura da timeline.
-- `src/components/plants/profile/plant-hero.tsx` — foto principal, apelido, espécie/nome científico, estado vazio de foto.
-- `src/components/plants/profile/care-summary.tsx` — abas Água / Luz / Fertilizante com valores ou "ainda não configurado".
-- `src/components/plants/profile/care-profile-sheet.tsx` — formulário de edição.
-- `src/components/plants/profile/care-timeline.tsx` — lista de eventos + estado vazio.
+- `src/components/plants/profile/plant-details-card.tsx` — leitura dos detalhes + botão de edição (reaproveita o componente `Field` movido para cá).
+- `src/components/plants/profile/plant-details-sheet.tsx` — formulário em Sheet reusando `updatePlant`/`PlantInput` de `src/lib/plants.ts` e o padrão de toasts do `care-profile-sheet.tsx`.
 
-## 2. Busca e junção de dados
+Alterar:
+- `src/routes/_authenticated/plants.$plantId.index.tsx` — trocar o bloco `Field` inline pelos dois componentes novos (incremento pequeno, sem refactor da rota).
+- `src/i18n/translations.ts` — chaves novas em pt/en/es: título da seção, botão editar detalhes, toasts de sucesso/erro, mensagem de apelido obrigatório. Reusar as chaves `field.*` já existentes.
 
-Quatro queries React Query independentes, todas com chave prefixada por `accountId` e filtro explícito `.eq("account_id", activeAccountId)`, seguindo o padrão de `src/lib/plants.ts`. Nenhum `account_id` vem da URL — sempre do provider `useActiveAccount`; RLS continua sendo a barreira real.
+Sem novas queries: `plantDetailQuery` e `updatePlant` já cobrem tudo; após salvar, invalidar `plantKeys.all(accountId)`.
 
-- `plants` — `plantDetailQuery` (já existe).
-- `plant_photos` — reutiliza o módulo atual; o hero usa a foto `is_primary`, com fallback para a mais recente e, na ausência, ilustração/ícone de estado vazio.
-- `plant_care_profile` — `maybeSingle()` por `plant_id`, retornando `null` quando não existir.
-- `plant_care_log` — `select` por `plant_id`, `order performed_at desc`, `limit 20`.
+## 4. Dependências e riscos
 
-Sem joins no banco: a composição é feita no cliente, o que evita acoplar o shape do PostgREST e mantém cada bloco com seu próprio estado de loading/erro.
+- **Dá para fazer agora, sem SQL:** todo o escopo da seção 2.
+- **Exige SQL futuro (Fase 2.3+, fora desta rodada):** indoor/outdoor, tamanho e tipo de vaso, drenagem, tipo de solo, distância e orientação da janela — todos exigiriam colunas ou enums novos em `plants`. Não entram no BUILD 2.2.
+- **Derivável, mas fora de escopo:** "última rega" viria de `plant_care_log`, que esta fase não toca.
+- Risco baixo de duplicidade entre o Sheet e a rota `/edit`: mitigado mantendo as duas sobre a mesma função `updatePlant` e o mesmo tipo `PlantInput`.
+- Risco de a tela ficar longa: mitigado removendo o bloco `Field` antigo ao introduzir o card.
 
-## 3. Create-or-update seguro
+## 5. Critérios de aceite
 
-`upsertPlantCareProfile(accountId, plantId, input)` usa `upsert` com `onConflict: "plant_id"`, gravando sempre `account_id: activeAccountId` e `plant_id` a partir do registro carregado da planta. A FK composta `(plant_id, account_id) -> plants(id, account_id)` já impede combinação de conta/planta inválida, e a RLS bloqueia contas de terceiros. O cliente nunca aceita `account_id` externo.
-
-Validação no cliente (espelho leve do schema, sem duplicá-lo):
-- intervalos: inteiro entre 1 e 3650, ou vazio → `null`.
-- `light_exposure`: `low | medium | bright_indirect | direct`, ou `null`, via Select tipado a partir do union já gerado nos tipos.
-- textos: `trim`, vazio → `null`.
-
-Erro do banco é exibido inline no Sheet (não só toast); sucesso mostra confirmação inline e invalida a query do perfil de cuidado.
-
-## 4. Ausência do perfil de cuidado
-
-`null` é estado normal, não erro. Cada bloco mostra "ainda não configurado" com a ação primária "Configurar cuidados"; havendo perfil, a ação vira "Editar cuidados". O Sheet abre em branco no caso de ausência e o primeiro salvamento cria o registro.
-
-## 5. Fora do escopo da Fase 2.1
-
-- Cálculo de próxima rega, status ou atraso de cuidado.
-- Lembretes, notificações, jobs, agendamento.
-- Registro/edição/exclusão de eventos em `plant_care_log` (leitura apenas).
-- Conteúdo de IA: "Sobre a espécie", FAQ, recomendações.
-- Qualquer alteração de schema, novas tabelas ou colunas.
-- Refactor de rotas de identificação, listagem ou formulário de planta.
-
-## 6. Riscos e dependências
-
-- Tipos gerados já contêm `plant_care_profile` — confirmado; sem dependência de migração.
-- `plant_care_log` não tem UI de escrita ainda, então a timeline provavelmente aparecerá vazia; o estado vazio precisa ser explicativo e não parecer bug.
-- Fotos usam URLs assinadas de 1h; o hero reaproveita a query de fotos existente para não duplicar assinatura.
-- Crescimento da tela: mitigado dividindo em componentes por bloco em vez de inflar o arquivo da rota.
-- Sem `light_exposure` como enum no banco (é CHECK), então a lista de opções vive em uma constante única compartilhada entre Select e validação.
-
-## 7. Plano de BUILD e critérios de aceite
-
-Ordem: dados (`plant-care-profile.ts`, `plant-care-log.ts`) → i18n → componentes → rota.
-
-Aceite:
-- `/plants/$plantId` mostra hero com foto principal ou estado vazio, apelido e espécie/nome científico, com botão voltar.
-- Abas Água, Luz e Fertilizante mostram valores salvos ou "ainda não configurado".
-- "Configurar/Editar cuidados" abre o Sheet, salva e reflete na tela sem reload; erro aparece inline.
-- Perfil inexistente é criado no primeiro salvamento; existente é atualizado.
-- Timeline lista eventos existentes com rótulos traduzidos ou estado vazio claro.
-- Estados de loading, 404/sem acesso e erro seguem o padrão atual.
-- Toda a copy em pt/en/es; nomes técnicos em inglês.
-- Typecheck e build limpos.
+1. `/plants/$plantId` mostra um card "Detalhes da planta" com apelido, espécie, nome científico, localização, data de aquisição, notas e data de criação; valores vazios usam o traço padrão.
+2. O botão "Editar detalhes" abre um Sheet preenchido com os valores atuais.
+3. Salvar com apelido válido: persiste, fecha o Sheet, mostra toast de sucesso e o card reflete os novos valores sem reload.
+4. Salvar com apelido vazio: bloqueia, mostra erro inline + toast e mantém o Sheet aberto.
+5. Erro de rede: toast de erro e o Sheet permanece aberto com os dados digitados.
+6. Todas as operações continuam filtradas por `activeAccountId`; nenhuma chamada nova ignora o contexto de conta.
+7. Todo texto novo existe em pt, en e es; nenhum schema, `plant_care_profile` ou `plant_care_log` é alterado.
