@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, Leaf, Plus } from "lucide-react";
+import { ChevronRight, Leaf, Plus, ScanLine } from "lucide-react";
 
 import { PlantScreen } from "@/components/plants/screen";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,15 @@ function PlantsListPage() {
         ) : null
       }
     >
+      {activeAccountId ? (
+        <Button asChild className="mb-5 h-12 w-full text-base">
+          <Link to="/plants/identify">
+            <ScanLine className="size-5" aria-hidden />
+            {t("identify.cta")}
+          </Link>
+        </Button>
+      ) : null}
+
       {accountLoading || (activeAccountId && query.isPending) ? (
         <div className="space-y-3" aria-label={t("plants.loading")}>
           <Skeleton className="h-20 w-full rounded-xl" />
@@ -65,7 +74,13 @@ function PlantsListPage() {
           <p className="max-w-xs text-sm text-muted-foreground">
             {t("plants.empty.body")}
           </p>
-          <Button asChild className="mt-2">
+          <Button asChild className="mt-2 h-12 w-full max-w-xs text-base">
+            <Link to="/plants/identify">
+              <ScanLine className="size-5" aria-hidden />
+              {t("identify.cta")}
+            </Link>
+          </Button>
+          <Button asChild variant="ghost" className="h-11">
             <Link to="/plants/new">{t("plants.empty.cta")}</Link>
           </Button>
         </div>

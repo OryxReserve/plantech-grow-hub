@@ -40,7 +40,8 @@ export function validatePhotoFile(file: File): PhotoValidationError | null {
   return null;
 }
 
-function extensionFor(file: File) {
+/** Shared by the manual upload and the identification staging upload. */
+export function extensionFor(file: File) {
   const fromName = file.name.split(".").pop()?.toLowerCase();
   if (fromName && /^[a-z0-9]{2,5}$/.test(fromName)) return fromName;
   return file.type.split("/")[1] ?? "jpg";

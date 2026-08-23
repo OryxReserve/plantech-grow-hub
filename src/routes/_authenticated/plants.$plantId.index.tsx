@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, ScanLine, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { PlantPhotoGallery } from "@/components/plants/photo-gallery";
@@ -127,6 +127,13 @@ function PlantDetailPage() {
             <Field label={t("field.notes")} value={plant.notes ?? dash} />
             <Field label={t("plants.addedOn")} value={formatDate(plant.created_at)} />
           </section>
+
+          <Button asChild variant="outline" className="mt-5 h-12 w-full text-base">
+            <Link to="/plants/identify" search={{ plantId: plant.id }}>
+              <ScanLine className="size-5" aria-hidden />
+              {t("identify.fromDetail")}
+            </Link>
+          </Button>
 
           <PlantPhotoGallery accountId={activeAccountId} plantId={plant.id} />
 
