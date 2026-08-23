@@ -109,6 +109,11 @@ const dictionaries = {
     "field.optional": "opcional",
     "field.nicknameRequired": "Informe um apelido para a planta.",
 
+    "details.title": "Detalhes da planta",
+    "details.edit": "Editar detalhes",
+    "details.sheetDescription": "Atualize as informações básicas desta planta.",
+    "details.saveError": "Não foi possível salvar os detalhes. Tente novamente.",
+
     "identify.title": "Identificar planta",
     "identify.cta": "Identificar planta",
     "identify.intro": "Tire ou escolha uma foto n\u00edtida da planta. Quanto mais vis\u00edveis as folhas, melhor o resultado.",
@@ -340,6 +345,11 @@ const dictionaries = {
     "field.optional": "optional",
     "field.nicknameRequired": "Please enter a nickname for the plant.",
 
+    "details.title": "Plant details",
+    "details.edit": "Edit details",
+    "details.sheetDescription": "Update the basic information about this plant.",
+    "details.saveError": "Could not save the details. Please try again.",
+
     "identify.title": "Identify plant",
     "identify.cta": "Identify plant",
     "identify.intro": "Take or choose a sharp photo of the plant. The more visible the leaves, the better the result.",
@@ -569,6 +579,11 @@ const dictionaries = {
     "field.notes": "Notas",
     "field.optional": "opcional",
     "field.nicknameRequired": "Escribe un apodo para la planta.",
+
+    "details.title": "Detalles de la planta",
+    "details.edit": "Editar detalles",
+    "details.sheetDescription": "Actualiza la información básica de esta planta.",
+    "details.saveError": "No se pudieron guardar los detalles. Inténtalo de nuevo.",
 
     "identify.title": "Identificar planta",
     "identify.cta": "Identificar planta",

@@ -8,6 +8,8 @@ import { PlantPhotoGallery } from "@/components/plants/photo-gallery";
 import { CareProfileSheet } from "@/components/plants/profile/care-profile-sheet";
 import { CareSummary } from "@/components/plants/profile/care-summary";
 import { CareTimeline } from "@/components/plants/profile/care-timeline";
+import { PlantDetailsCard } from "@/components/plants/profile/plant-details-card";
+import { PlantDetailsSheet } from "@/components/plants/profile/plant-details-sheet";
 import { PlantHero } from "@/components/plants/profile/plant-hero";
 import { PlantScreen } from "@/components/plants/screen";
 import {
@@ -32,15 +34,6 @@ export const Route = createFileRoute("/_authenticated/plants/$plantId/")({
   component: PlantDetailPage,
 });
 
-function Field({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border-b border-border py-3 last:border-b-0">
-      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="mt-1 whitespace-pre-wrap text-sm">{value}</p>
-    </div>
-  );
-}
-
 function PlantDetailPage() {
   const { t, locale } = useI18n();
   const { plantId } = Route.useParams();
@@ -48,6 +41,7 @@ function PlantDetailPage() {
   const queryClient = useQueryClient();
   const { activeAccountId, isLoading: accountLoading } = useActiveAccount();
   const [careOpen, setCareOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const query = useQuery({
     ...plantDetailQuery(activeAccountId ?? "", plantId),
@@ -153,21 +147,14 @@ function PlantDetailPage() {
 
           <CareTimeline accountId={activeAccountId} plantId={plant.id} />
 
-          <section className="mt-8 rounded-xl border border-border px-4">
-            <Field label={t("field.nickname")} value={plant.nickname} />
-            <Field label={t("field.speciesName")} value={plant.species_name ?? dash} />
-            <Field
-              label={t("field.scientificName")}
-              value={plant.scientific_name ?? dash}
-            />
-            <Field label={t("field.location")} value={plant.location ?? dash} />
-            <Field
-              label={t("field.acquiredAt")}
-              value={formatDate(plant.acquired_at)}
-            />
-            <Field label={t("field.notes")} value={plant.notes ?? dash} />
-            <Field label={t("plants.addedOn")} value={formatDate(plant.created_at)} />
-          </section>
+          <PlantDetailsCard plant={plant} onEdit={() => setDetailsOpen(true)} />
+
+          <PlantDetailsSheet
+            accountId={activeAccountId}
+            plant={plant}
+            open={detailsOpen}
+            onOpenChange={setDetailsOpen}
+          />
 
           <Button asChild variant="outline" className="mt-5 h-12 w-full text-base">
             <Link to="/plants/identify" search={{ plantId: plant.id }}>
