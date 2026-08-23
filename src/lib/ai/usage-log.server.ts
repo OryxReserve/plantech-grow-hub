@@ -64,7 +64,7 @@ export async function logAiUsage(entry: AiUsageLogEntry): Promise<boolean> {
     const { error } = await supabaseAdmin.from("ai_usage_log").insert({
       account_id: entry.accountId,
       user_id: entry.userId,
-      feature: AI_FEATURE_PLANT_IDENTIFICATION,
+      feature: entry.feature ?? AI_FEATURE_PLANT_IDENTIFICATION,
       provider: entry.provider,
       model: entry.model,
       status: entry.status,
