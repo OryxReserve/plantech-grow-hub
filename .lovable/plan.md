@@ -1,99 +1,86 @@
-# Fase 1.3B — Plan da integração Kindwise (Onda 1: identificação botânica)
+# Fase 2A — PLAN — Cuidado inicial pós-identificação
 
-Sem Build. Estado atual verificado no código e no banco (`ai_usage_log.credits_used` numeric NOT NULL default 0 e `plant_id` uuid nullable já existem).
+Sem Build. Estado verificado no código: o fluxo de identificação termina em `navigate({ to: "/plants/$plantId" })` (`src/routes/_authenticated/plants.identify.tsx:262`), ou seja, o usuário sempre cai no perfil da planta logo após identificar/cadastrar.
 
-## 1. Arquivos a alterar
+## 1. Ponto de encaixe
+
+**No detalhe da planta**, não na tela final da identificação.
+
+Motivos:
+- A tela de identificação já é multi-step e efêmera; um bloco de cuidados ali seria visto uma vez e perdido.
+- O perfil já é o destino automático pós-identificação, então o usuário vê a orientação no mesmo instante — sem duplicar tela.
+- O mesmo bloco serve para plantas cadastradas manualmente e para plantas antigas, sem código extra.
+
+Posição na página: um card **"Cuidados iniciais"** logo abaixo do `PlantHero` e **acima** do `CareSummary`. O `CareSummary` continua sendo "o que você configurou"; o novo card é "o que se recomenda para esta espécie". Hierarquia visual deixa claro que um é sugestão e o outro é a configuração real do usuário.
+
+## 2. Origem do conteúdo — recomendação
+
+**IA 1x por espécie, com cache no banco** (`species_care_guide`), chave = nome científico normalizado + idioma.
+
+Comparação:
+- *Estático por espécie*: zero custo, mas exige curadoria manual e cobre uma fração das espécies que a Kindwise devolve. Inútil na cauda longa.
+- *IA 1x por planta*: custo linear no número de plantas; dez usuários com a mesma Monstera pagam dez vezes o mesmo texto.
+- *IA 1x por espécie com cache*: a primeira planta de uma espécie gera; todas as seguintes, em qualquer conta, leem do cache. Custo cai rápido, o texto fica estável e revisável, e o `ai_usage_log` continua registrando cada geração real.
+
+O cache é **global** (não por conta): é conhecimento botânico público, não dado do tenant. A tabela não tem `account_id` — leitura liberada para `authenticated`, escrita só via service role dentro do server fn. `plants`, `plant_care_profile` e tudo mais continuam intocados no isolamento por conta.
+
+Sem nome científico (identificação só com nome comum, ou cadastro manual sem espécie): o card não aparece e mostra um estado vazio curto convidando a preencher a espécie. Nada de gerar guia a partir de apelido.
+
+## 3. Schema
+
+Precisa de **uma tabela nova**, via SQL Editor:
+
+`species_care_guide`
+- `id uuid pk`
+- `species_key text not null` — nome científico normalizado (minúsculas, sem acento, espaços colapsados)
+- `language app_language not null`
+- `scientific_name text not null` — como veio, para exibição
+- `water text`, `light text`, `fertilizing text`, `notes text` — textos curtos
+- `source text not null default 'ai'`, `model text`, `generated_at timestamptz`
+- `created_at` / `updated_at`
+- `unique (species_key, language)`
+- GRANT `SELECT` para `anon`/`authenticated` conforme política; `ALL` para `service_role`; RLS on com policy de leitura para `authenticated` e nenhuma policy de escrita (só service role).
+
+Nenhuma alteração em `plants`, `plant_care_profile`, `ai_usage_log` ou RLS existentes.
+
+## 4. Arquivos afetados
 
 Criar:
-- `src/lib/ai/kindwise.server.ts` — o `KindwiseVisionProvider`, único lugar que fala HTTP com a Kindwise.
+- `src/lib/species-care.ts` — tipos + `queryOptions` de leitura do cache.
+- `src/lib/species-care.functions.ts` — `getSpeciesCareGuide` (`createServerFn` + `requireSupabaseAuth`): normaliza a chave, lê o cache, e só em miss chama o gerador.
+- `src/lib/ai/species-care.server.ts` — geração via Lovable AI Gateway (texto, não visão), saída em JSON estrito com os quatro campos, cada um limitado a ~240 caracteres.
+- `src/components/plants/profile/initial-care-card.tsx` — o card.
 
-Alterar (mínimo):
-- `src/lib/ai/provider-registry.server.ts` — passar `kindwise` a ser o default; `lovable` e `logorion` continuam selecionáveis por `AI_VISION_PROVIDER`.
-- `src/lib/ai/vision-provider.ts` — acrescentar `creditsUsed: number | null` em `AiVisionUsage` (tipo puro, sem lógica).
-- `src/lib/ai/usage-log.server.ts` — aceitar e gravar `credits_used` e `plant_id`.
-- `src/lib/plant-identification.functions.ts` — repassar `creditsUsed` e o `plant_id` (que já é validado ali) para `logAiUsage`, nos caminhos de sucesso e de erro.
+Alterar:
+- `src/routes/_authenticated/plants.$plantId.index.tsx` — montar o card entre `PlantHero` e `CareSummary`.
+- `src/lib/ai/usage-log.server.ts` — aceitar `feature: 'species_care_guide'` (hoje a feature é constante fixa) e os campos de payload novos.
+- `src/i18n/translations.ts` — chaves em pt/en/es.
 
-Não muda: a UI (`plants.identify.tsx`, componentes de step), `plant-identification.ts`, i18n, schema, RLS.
+Não muda: fluxo de identificação, `kindwise.server.ts`, provider registry, `plant-care-profile`, Stripe.
 
-## 2. Fluxo atual identificado
+## 5. Menor escopo viável
 
-1. **Contrato**: `src/lib/ai/vision-provider.ts` — tipos puros compartilhados por cliente e servidor (`AiVisionProvider`, `PlantIdentificationCandidate`, `AiVisionError` com 8 categorias, `MAX_CANDIDATES = 3`, `MAX_IDENTIFY_IMAGES = 3`, `normalizeHint`).
-2. **Seleção do provider**: `src/lib/ai/provider-registry.server.ts` — `getVisionProvider()` lê `AI_VISION_PROVIDER` e devolve `logorion` (stub que lança `not_configured`) ou, por padrão, `lovableVisionProvider`.
-3. **Onde a IA roda**: `identifyPlantPhoto` em `src/lib/plant-identification.functions.ts`, um `createServerFn` com `requireSupabaseAuth`. Executa no worker server-side; o provider e o logger são carregados por `await import(...)` dentro do handler. Nada de chave no cliente.
-4. **Imagens**: o cliente sobe 1–3 arquivos para `plant-photos/{account_id}/_staging/{uuid}.ext` e envia só os `storagePaths`. O servidor valida o prefixo da conta, baixa com service role e converte cada foto em `{ imageBase64, mimeType }`. A dica passa por `normalizeHint` (máx. 280 chars, nunca persistida).
-5. **Transformação para a UI**: hoje dentro de `lovable-vision.server.ts` (`mapCandidates`), que já aplica a regra da Fase 1.2 — candidato só entra se tiver `commonName` **ou** `scientificName`; lista vazia → a rota vai para `uncertain`; `isPlant === false` → copy de "não é planta".
-6. **`ai_usage_log`**: gravado exclusivamente por `logAiUsage` em `src/lib/ai/usage-log.server.ts`, via service role, com payload jsonb limitado a 3500 bytes (`image_count`, `hint_provided`, `plant_context`, `is_plant`, `candidate_count`, `error_category`). Chamado nos dois ramos do `try/catch` do server fn.
-7. **Fallback manual**: já existe — o step `uncertain` oferece `identify.manualFallback` levando ao cadastro manual. Intocado.
+- Só leitura + geração sob demanda. Nada de job, nada de pré-aquecimento.
+- Quatro campos de texto, nada estruturado (sem `interval_days`, sem enum de luz). Estruturar agora criaria dívida: a Fase 2 completa vai querer converter sugestão em configuração, e é melhor decidir o formato quando essa conversão existir.
+- Sem edição, sem versionamento, sem feedback do usuário sobre o texto.
+- Falha de geração = card não aparece, com uma linha de erro discreta e botão de tentar de novo. Nunca bloqueia o perfil.
+- Telemetria: uma linha em `ai_usage_log` por geração real (miss de cache), com `feature = 'species_care_guide'`. Cache hit não gera linha — é exatamente o sinal de economia que a monetização vai querer ler depois.
 
-## 3. Mudanças mínimas propostas
+## 6. UX/UI mobile-first
 
-### Adapter
+Card no mesmo estilo dos existentes (`rounded-2xl border bg-card`), com:
+- Título "Cuidados iniciais" e uma linha de subtítulo deixando explícito que é orientação geral para a espécie, não rotina da sua planta.
+- Quatro linhas com ícone: gota (água), sol (luz), folha (fertilização), alerta (sinais de atenção). Cada uma com rótulo curto e uma a duas frases.
+- Estado de carregamento com skeleton das quatro linhas.
+- Rodapé com o nome científico usado como base e uma nota curta de que condições locais mandam mais que a média.
+- Sem tabs, sem accordion, sem CTA para agenda. O botão de configurar cuidado que já existe permanece onde está e continua sendo o único caminho para a configuração real.
 
-`kindwiseVisionProvider` em `src/lib/ai/kindwise.server.ts`, `name: "kindwise"`, implementando a mesma interface `AiVisionProvider`. Mesma forma do adapter atual: timeout por `AbortController`, `categorize()` local, erros só como `AiVisionError`.
+## 7. Relação com Fase 2 completa e Fase 3
 
-### Transporte: JSON, não multipart
+- **Fase 2A (esta)**: conhecimento genérico por espécie, só leitura, sem estado por planta.
+- **Fase 2 completa**: transformar sugestão em configuração real — um "aplicar ao meu cuidado" que preenche `plant_care_profile`, e o registro de eventos em `plant_care_log`. Depende dos campos estruturados, que ficam para lá de propósito.
+- **Fase 3**: agenda, lembretes, diagnóstico de saúde, produtos. Nada disso lê `species_care_guide` diretamente — lê o `plant_care_profile` que o usuário confirmou. A fronteira é essa: 2A informa, 2 configura, 3 automatiza.
 
-O fluxo atual já entrega as fotos como base64 em memória (o download do bucket devolve bytes que viram base64). A `plant.id v3` aceita `images: [base64...]` no corpo JSON de `POST /api/v3/identification`. Usar multipart exigiria reconstruir `Blob`/`FormData` a partir do base64 sem ganho algum. Portanto: **JSON**, com `Api-Key: <KINDWISE_API_KEY>` no header e `Content-Type: application/json`.
+## 8. Ponto que precisa de decisão antes do Build
 
-### Requisição da Onda 1
-
-- Endpoint: `POST /api/v3/identification` com query `?details=common_names,rank&language=<pt|en|es>`.
-- Corpo: `{ images: [...base64], similar_images: false }` mais a dica só se existir.
-- **Sem** `health=auto` e sem `health=all`. Sem `similar_images`, sem `url`, sem `description`, sem `taxonomy`, sem `image` licenciada — nada além de `common_names` e `rank`.
-- A dica do usuário não tem campo equivalente na Kindwise. Ela **não** vai para a API nesta onda; continua sendo só contexto do usuário e continua sendo registrada como `hint_provided: true`. Isso é uma perda funcional consciente e deve ser dita ao usuário no Build (ou a dica pode virar um filtro de ordenação local numa fase seguinte — fora de escopo).
-- Chave lida com `process.env["KINDWISE_API_KEY"]` **dentro** do handler do provider; ausência → `AiVisionError("not_configured")`.
-
-### Mapeamento da resposta
-
-| Kindwise | Destino |
-| --- | --- |
-| `result.is_plant.binary` | `isPlant` (ausente → `true`, nunca inventar rejeição) |
-| `result.classification.suggestions[]` | candidatos, cortados em `MAX_CANDIDATES = 3`, na ordem devolvida |
-| `suggestion.name` | `scientificName` |
-| `suggestion.details.common_names[0]` (no idioma pedido) | `commonName`; ausente → string vazia, e o candidato sobrevive pelo `scientificName` |
-| `suggestion.details.rank` | `rank`: `species`/`genus`/`cultivar` mapeados diretamente; qualquer outro valor (`family`, `variety`, etc.) → `genus` quando mais amplo que espécie, senão `species` |
-| `suggestion.probability` | `confidence` (só quando numérico entre 0 e 1) |
-| — | `broadOnly`: `true` quando `rank !== "species" && rank !== "cultivar"` |
-| — | `note`: `null` na Onda 1. A Kindwise não devolve texto de incerteza e nada será fabricado; a UI já lida com `note` nulo |
-| `access_token` / `id` da resposta | `requestId` para o log |
-
-O filtro final é o mesmo já usado: sobrevive quem tem `commonName` ou `scientificName`. Zero sobreviventes → `candidates: []` → a rota manda para `uncertain` → fallback manual. Nenhuma mudança de UI.
-
-### Erros
-
-`categorize()` no adapter, mapeando para as categorias já existentes:
-- `AbortError`/timeout (limite proposto: 30s, a Kindwise responde em segundos) → `timeout` (retryable)
-- 401/403 → `not_configured` (chave inválida — não é falha do usuário, não é retryable)
-- 429 → `rate_limited` (retryable)
-- 402 / crédito esgotado → `no_credits`
-- 400 / imagem rejeitada → `invalid_image`
-- 5xx → `provider_unavailable` (retryable)
-- falha de rede (`fetch` rejeitado) → `provider_unavailable`
-
-Todos viram `AiVisionError`; o server fn já converte em `{ ok: false, errorCategory, retryable }` e a UI já tem tela e textos para cada categoria. Nenhum detalhe do provider cruza a fronteira; o log detalhado fica no `console.error` do servidor.
-
-### `credits_used`
-
-A Kindwise cobra 1 crédito por identificação simples (sem `health`, sem `similar_images`). Regra: `creditsUsed = 1` em sucesso; `0` em erro antes de resposta útil. Se a resposta trouxer um campo de custo, ele prevalece sobre a constante. `tokensIn`/`tokensOut` ficam `0` com `usageReported: false` — a Kindwise não usa tokens. `costUsd` fica `null`; o custo em dólar é derivável do plano na Fase 6, não do provider.
-
-### Log
-
-`logAiUsage` ganha `creditsUsed` e `plantId` no tipo de entrada e grava nas colunas novas. Em `identifyPlantPhoto`, `plantId` é `data.plantId ?? null` — já validado como pertencente à conta antes de qualquer byte ser lido. `feature` continua `plant_identification`, `provider` passa a ser `kindwise`, `model` recebe `plant.id/v3`. `image_count` e `hint_provided` seguem no jsonb como hoje.
-
-## 4. Riscos e cuidados
-
-- **Dica sem uso real na API**: o campo continua na UI e no log, mas não influencia o resultado. É o principal desvio funcional da Onda 1 e precisa de decisão explícita antes do Build (manter, ocultar, ou explicar na tela).
-- **`note` vazio**: a UI perde a frase de incerteza que o modelo generativo produzia. A tela já suporta `note: null`, mas o resultado fica mais seco. Aceitável na Onda 1.
-- **`rank` fora do enum**: a Kindwise pode devolver ranks que o app não modela. O mapa acima é conservador de propósito — nunca promover para `species` algo mais amplo.
-- **Custo em produção**: cada tentativa consome crédito real. Um usuário repetindo o fluxo gasta créditos; o log por `account_id` + `created_at` já permite detectar isso, mas não há limite por conta (fora de escopo).
-- **Rollback**: como o registry mantém os três adapters, voltar ao Lovable é uma variável de ambiente, sem deploy de código.
-- **Verificação obrigatória no Build**: o formato exato de `details.common_names` e `details.rank` da v3 precisa ser confirmado com uma chamada real antes de considerar a integração pronta — o mapeamento acima é do contrato documentado, não de uma resposta observada.
-
-## 5. Decisão objetiva
-
-**Seguro para Build**, com duas condições:
-
-1. Cadastrar o secret `KINDWISE_API_KEY` no ambiente do servidor antes de tudo.
-2. Fechar a decisão sobre a dica opcional (manter visível sabendo que não afeta o resultado, ou ocultar na Onda 1).
-
-Nenhum SQL, nenhuma tabela nova, nenhum refactor da UI ou do fluxo. O escopo do Build são um arquivo novo e quatro alterações pequenas.
+O guia gerado é armazenado por idioma. Se a mesma espécie for aberta em pt e en, são duas gerações (dois créditos). A alternativa é gerar num idioma e traduzir, o que economiza mas adiciona um segundo passo de IA. Recomendação: **gerar por idioma**, simples e direto, já que o volume real de idiomas por espécie tende a ser 1.
