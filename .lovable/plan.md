@@ -1,83 +1,71 @@
-# Fase 2B — Perfil contextual da planta
+# Plantech — Indicador de saúde da planta no perfil individual
 
-Complementa o guia geral da espécie (Fase 2A) com dados do ambiente real onde aquela planta específica vive. Nada de agenda, lembretes, IA ou recomendação nesta fase.
+## Respostas às 5 perguntas de pré-planejamento
 
-## 1. Diagnóstico do que já existe
+### 1. Campos de `plants` relacionados a cuidados
 
-- `plant_care_profile` já existe, é 1:1 com a planta, é escopada por `account_id` + `plant_id`, tem RLS por conta e trigger de `updated_at`. Hoje guarda apenas rega/luz/adubo em nível de intenção de cuidado (intervalos e notas).
-- `plants` guarda identidade e histórico: apelido, espécie, nome científico, local (texto livre), data de aquisição, notas.
-- `plant_care_log` existe com tipo `watering` e já é lido pela Timeline, mas ainda não tem caminho de escrita no app (a escrita é a Fase 2.3, fora daqui).
-- UI do perfil já é composta por cartões independentes: Hero, Cuidados iniciais (2A), Resumo de cuidados, Timeline, Detalhes da planta, Galeria. Cada bloco tem seu próprio cartão + Sheet de edição, então adicionar um bloco novo é incremental e não toca nos outros.
+A tabela `plants` não possui campos diretos de acompanhamento de cuidados. Os únicos campos temporais/contextuais são:
 
-Conclusão: a separação "guia geral da espécie" (`species_care_guide`, global) x "contexto individual" (por planta) já está estruturalmente clara. Falta apenas onde guardar o contexto físico do ambiente.
+- `acquired_at` (date) — data de aquisição, apenas informativa.
+- `is_archived` (boolean) — estado de arquivamento.
+- `created_at` / `updated_at` — metadados de auditoria.
 
-## 2. O schema atual basta?
+Todo o acompanhamento de cuidados está na tabela `plant_care_profile` (1:1 com `plants`) e no histórico `plant_care_log`.
 
-Não. `plant_care_profile` não tem nenhuma coluna para solo, drenagem, vaso, janela, luz percebida, ambiente ou data da última rega. `plants.notes` é texto livre e não serve como dado estruturado para a Fase 3.
+### 2. Campos e eventos de `plant_care_log`
 
-## 3. Menor mudança possível
+A tabela `plant_care_log` registra eventos pontuais de cuidado:
 
-Estender a tabela `plant_care_profile` que já existe, sem criar tabela nova e sem tocar em RLS, grants ou políticas (as políticas atuais já cobrem colunas novas automaticamente).
+- `care_type` (enum `care_log_type`): `watering`, `fertilizing`, `pruning`, `repotting`, `treatment`, `note`.
+- `performed_at` (timestamptz) — quando o cuidado foi realizado.
+- `performed_by` (uuid) — usuário que registrou.
+- `notes` (text) — observação livre.
 
-Colunas adicionadas (todas opcionais):
+Atualmente o `CareTimeline` já lê esses dados, mas não há cálculo de status ou atraso baseado nos eventos.
 
-- `soil_type` — texto curto controlado (ex.: substrato comum, cactos, orquídeas, terra de jardim, outro)
-- `drainage` — poor / medium / good
-- `pot_size_cm` — número inteiro pequeno (diâmetro em cm)
-- `window_distance_cm` — número inteiro
-- `window_orientation` — norte / sul / leste / oeste / sem janela
-- `perceived_light` — muito baixa / baixa / média / alta
-- `environment` — interno / externo / varanda ou estufa
-- `last_watered_at` — data informada manualmente pelo usuário
-- `context_note` — observação livre curta (limite ~280 caracteres)
+### 3. Onde calcular o health score
 
-Todas com valores controlados por CHECK, todas anuláveis, sem default. `last_watered_at` é declarativo agora; na Fase 3 ele vira semente do cálculo, e o histórico real continuará vindo de `plant_care_log`.
+**Recomendação: client-side, derivado dos dados já carregados.**
 
-## 4. Arquivos que mudam
+Motivos:
 
-- `src/lib/plant-care-profile.ts` — adicionar as listas de valores, incluir as novas colunas no select e no tipo de input do upsert (mesma função de upsert já existente)
-- `src/components/plants/profile/plant-context-card.tsx` (novo) — cartão de leitura
-- `src/components/plants/profile/plant-context-sheet.tsx` (novo) — formulário de edição
-- `src/routes/_authenticated/plants.$plantId.index.tsx` — encaixar o cartão logo abaixo do bloco de cuidados
-- `src/i18n/translations.ts` — chaves em pt/en/es
+- `plant_care_profile` já traz `watering_interval_days`, `fertilizing_interval_days` e `last_watered_at`.
+- `plant_care_log` já traz o histórico de regas/fertilizações.
+- Calcular no cliente evita uma nova coluna/cached score que precisaria ser invalidada a cada novo log ou alteração de perfil.
+- A lógica é pequena: comparar `last_watered_at` + `watering_interval_days` com `hoje`, e similar para fertilização.
 
-Nada em `species-care.*`, identificação, provider de IA, timeline ou galeria.
+Se no futuro o score for usado em listagens, filtros ou notificações, aí sim vale persistir (ex.: coluna `health_status` em `plants` atualizada por trigger em `plant_care_log`). Para o perfil individual, client-side é suficiente.
 
-## 5. UX mínima
+### 4. Componente visual recomendado
 
-Cartão "Ambiente da planta" abaixo do botão de configurar cuidados e acima da Timeline.
+Dado o design atual do perfil (cards arredondados com bordas sutis, ícones do Lucide, tipografia pequena e semântica), o indicador mais adequado é:
 
-```text
-Ambiente da planta                [Editar]
-Solo: substrato comum · Drenagem: boa
-Vaso: 18 cm · Ambiente: interno
-Janela: leste, a 80 cm · Luz percebida: média
-Última rega informada: 21/08/2026
-"Fica na cozinha, pega sol da manhã"
-```
+- **Badge discreto com cor semântica + ícone** no topo do `PlantHero`.
+- Estados sugeridos:
+  - `healthy` — verde suave (`text-emerald-foreground`/`bg-emerald`) + ícone `CheckCircle2`.
+  - `needs_attention` — âmbar suave + ícone `AlertCircle`.
+  - `overdue` — vermelho suave (`text-destructive-foreground`/`bg-destructive`) + ícone `AlertTriangle`.
+  - `unknown` — cinza neutro + ícone `HelpCircle` (quando faltam dados).
 
-- Sem dados: estado vazio com uma linha explicativa e botão "Preencher ambiente".
-- Edição em Sheet de tela cheia mobile, campos agrupados em Solo e vaso / Luz e posição / Rega e observação.
-- Selects para os campos controlados, campos numéricos com teclado numérico, data com input nativo, textarea curto com contador.
-- Salvamento reaproveita o padrão atual: validação leve, toast de sucesso/erro, foco no primeiro campo inválido.
-- O cartão de Cuidados iniciais (espécie) mantém a legenda de "orientação geral"; o novo cartão é rotulado como dados desta planta específica, deixando a distinção explícita para o usuário.
+Não recomendo progress bar (implica precisão numérica que não temos) nem emoji scale (quebra a consistência visual do Lucide). O badge pode ser expandido futuramente para um tooltip com a justificativa textual.
 
-## 6. Riscos de escopo e o que fica fora
+### 5. Utilitários de data existentes
 
-Riscos:
-- Tentação de calcular "próxima rega" a partir de `last_watered_at` — não nesta fase.
-- Tentação de alimentar a IA com o contexto — não nesta fase.
-- Duplicidade entre `plants.location` (texto livre) e os novos campos: mantemos `plants.location` como está e o novo bloco como dado estruturado; sem migração de dados.
-- Crescimento de formulário: todos os campos são opcionais e o cartão só mostra o que estiver preenchido.
+- O projeto já depende de `date-fns@^4.1.0`, portanto `differenceInDays`, `addDays`, `isPast`, etc. estão disponíveis.
+- `src/lib/utils.ts` contém apenas `cn(...)` para Tailwind; não há helpers de data customizados.
+- O `CareTimeline` já usa `new Date(event.performed_at).toLocaleString(locale)` para formatação local.
 
-Fora desta fase: agenda, lembretes, notificações, tarefas recorrentes, inferência de frequência, engine de recomendação, nova chamada de IA, escrita em `plant_care_log`, produtos/insumos, diagnóstico por imagem e qualquer alteração em `species_care_guide` ou no fluxo de identificação.
+## Direção de implementação proposta
 
-## Ponte para a Fase 3
+1. Criar um helper puro `getPlantHealthStatus(profile, careLog)` em `src/lib/plant-health.ts` que retorne um dos estados acima e, opcionalmente, a justificativa (ex.: "última rega há X dias", "falta Y dias para a próxima rega").
+2. Adicionar as chaves de tradução `health.*` em `src/i18n/translations.ts` para pt/en/es.
+3. Inserir um `HealthBadge` dentro do `PlantHero`, logo abaixo do nome da espécie, sem alterar a estrutura dos outros cards.
+4. Garantir que o cálculo seja defensivo: quando `last_watered_at` ou `watering_interval_days` forem nulos, retornar `unknown`.
+5. Não criar novas tabelas ou colunas nesta fase.
 
-Ao final da 2B, a Fase 3 terá tudo em uma única linha por planta: intenção de cuidado (intervalos já existentes), contexto físico (novas colunas) e uma âncora temporal (`last_watered_at`), sem precisar de novo schema para começar o cronograma.
+## Escopo explícito fora desta fase
 
-## Detalhes técnicos
-
-- Uma migração aditiva com `ALTER TABLE public.plant_care_profile ADD COLUMN ... NULL` e CHECKs por valor; sem novas policies, sem novos grants, sem alterar `is_account_member`.
-- O upsert continua usando `onConflict: "plant_id"` e recebendo `account_id` do contexto ativo, nunca da URL.
-- A query key `plant-care-profile/{accountId}/{plantId}` já existente é reutilizada; um único fetch alimenta os dois cartões.
+- Não calcular score numérico (0-100).
+- Não persistir o status no banco.
+- Não usar IA para inferir saúde.
+- Não adicionar notificações/push.
