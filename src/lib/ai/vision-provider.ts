@@ -35,6 +35,10 @@ export class AiVisionError extends Error {
   }
 }
 
+/** Taxonomic precision the model is willing to commit to. */
+export const IDENTIFICATION_RANKS = ["species", "genus", "cultivar"] as const;
+export type IdentificationRank = (typeof IDENTIFICATION_RANKS)[number];
+
 export type PlantIdentificationCandidate = {
   commonName: string;
   scientificName: string | null;
@@ -42,6 +46,10 @@ export type PlantIdentificationCandidate = {
   note: string | null;
   /** Only set when the provider actually returned a value. Never fabricated. */
   confidence: number | null;
+  /** How precise the answer is. Defaults to "species" when the model omits it. */
+  rank: IdentificationRank;
+  /** True when only a broad (usually genus-level) answer is justified. */
+  broadOnly: boolean;
 };
 
 export type AiVisionUsage = {
@@ -64,9 +72,16 @@ export type PlantIdentificationResult = {
   latencyMs: number;
 };
 
-export type IdentifyPlantInput = {
+export type IdentifyPlantImage = {
   imageBase64: string;
   mimeType: string;
+};
+
+export type IdentifyPlantInput = {
+  /** 1..MAX_IDENTIFY_IMAGES images, in the order the user arranged them. */
+  images: IdentifyPlantImage[];
+  /** Optional, unverified user context. Never treated as ground truth. */
+  hint?: string | null;
   /** UI locale, used only to localize the free-text note. */
   language: string;
 };
@@ -85,3 +100,12 @@ export const IDENTIFY_ACCEPTED_TYPES = [
 ] as const;
 
 export const MAX_CANDIDATES = 3;
+export const MAX_IDENTIFY_IMAGES = 3;
+export const MAX_HINT_LENGTH = 280;
+
+/** Trim, collapse to null when empty, hard-cap at MAX_HINT_LENGTH. */
+export function normalizeHint(hint: string | null | undefined): string | null {
+  const trimmed = (hint ?? "").trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, MAX_HINT_LENGTH);
+}
