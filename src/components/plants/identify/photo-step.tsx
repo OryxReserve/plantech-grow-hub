@@ -94,7 +94,7 @@ export function PhotoStep({
         <div className="space-y-3">
           <button
             type="button"
-            onClick={() => inputRef.current?.click()}
+            onClick={() => cameraRef.current?.click()}
             className="flex w-full flex-col items-center gap-3 rounded-2xl border border-dashed border-border px-6 py-14 text-center transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <span className="flex size-14 items-center justify-center rounded-full bg-primary/10">
