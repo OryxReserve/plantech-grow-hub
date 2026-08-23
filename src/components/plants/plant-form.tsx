@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ type PlantFormProps = {
   submitLabel: string;
   isSubmitting: boolean;
   onSubmit: (input: PlantInput) => void;
+  onInvalidSubmit?: () => void;
   onCancel: () => void;
 };
 
@@ -25,6 +26,7 @@ export function PlantForm({
   submitLabel,
   isSubmitting,
   onSubmit,
+  onInvalidSubmit,
   onCancel,
 }: PlantFormProps) {
   const { t } = useI18n();
@@ -37,11 +39,14 @@ export function PlantForm({
   const [acquiredAt, setAcquiredAt] = useState(initialValue?.acquired_at ?? "");
   const [notes, setNotes] = useState(initialValue?.notes ?? "");
   const [error, setError] = useState<string | null>(null);
+  const nicknameRef = useRef<HTMLInputElement>(null);
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (nickname.trim().length === 0) {
       setError(t("field.nicknameRequired"));
+      nicknameRef.current?.focus();
+      onInvalidSubmit?.();
       return;
     }
     setError(null);
@@ -56,16 +61,17 @@ export function PlantForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4" noValidate>
       <div className="space-y-1.5">
         <Label htmlFor="nickname">{t("field.nickname")}</Label>
         <Input
           id="nickname"
+          ref={nicknameRef}
           value={nickname}
           onChange={(e) => setNickname(e.target.value)}
           placeholder={t("field.nicknamePlaceholder")}
           maxLength={120}
-          required
+          aria-invalid={error ? true : undefined}
         />
       </div>
 
