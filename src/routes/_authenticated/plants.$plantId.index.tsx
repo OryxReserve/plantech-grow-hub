@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { PlantPhotoGallery } from "@/components/plants/photo-gallery";
 import { PlantScreen } from "@/components/plants/screen";
 import {
   AlertDialog,
@@ -126,6 +127,8 @@ function PlantDetailPage() {
             <Field label={t("field.notes")} value={plant.notes ?? dash} />
             <Field label={t("plants.addedOn")} value={formatDate(plant.created_at)} />
           </section>
+
+          <PlantPhotoGallery accountId={activeAccountId} plantId={plant.id} />
 
           <AlertDialog>
             <AlertDialogTrigger asChild>
