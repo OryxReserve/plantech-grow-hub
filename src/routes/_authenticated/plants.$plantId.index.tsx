@@ -122,7 +122,11 @@ function PlantDetailPage() {
         </div>
       ) : (
         <>
-          <PlantHero accountId={activeAccountId} plant={plant} />
+          <PlantHero
+            accountId={activeAccountId}
+            plant={plant}
+            profile={careProfile.data ?? null}
+          />
 
           <InitialCareCard
             accountId={activeAccountId}

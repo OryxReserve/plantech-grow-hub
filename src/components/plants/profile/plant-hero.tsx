@@ -1,21 +1,25 @@
 import { useQuery } from "@tanstack/react-query";
 import { Leaf } from "lucide-react";
 
+import { HealthBadge } from "@/components/plants/profile/health-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n } from "@/i18n/i18n";
+import type { PlantCareProfileRow } from "@/lib/plant-care-profile";
 import { plantPhotosQuery } from "@/lib/plant-photos";
 import type { PlantRow } from "@/lib/plants";
 
 /**
  * Profile header: primary photo (falls back to the most recent one, then to an
- * empty state), nickname and species/scientific name.
+ * empty state), nickname, species/scientific name and health badge.
  */
 export function PlantHero({
   accountId,
   plant,
+  profile,
 }: {
   accountId: string;
   plant: PlantRow;
+  profile: PlantCareProfileRow | null;
 }) {
   const { t } = useI18n();
   const photos = useQuery(plantPhotosQuery(accountId, plant.id));
@@ -54,6 +58,9 @@ export function PlantHero({
             {plant.scientific_name}
           </p>
         ) : null}
+        <div className="mt-3">
+          <HealthBadge profile={profile} />
+        </div>
       </div>
     </section>
   );

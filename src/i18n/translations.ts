@@ -307,6 +307,11 @@ const dictionaries = {
     "context.saveErrorToast": "Não foi possível salvar o ambiente.",
     "context.validationErrorToast": "Revise os campos destacados.",
 
+    "health.unknown": "Sem dados de saúde",
+    "health.on_track": "No prazo",
+    "health.needs_watering_soon": "Rega em breve",
+    "health.overdue_watering": "Rega atrasada",
+
     "role.owner": "Proprietário",
     "role.admin": "Administrador",
     "role.member": "Membro",
@@ -607,6 +612,11 @@ const dictionaries = {
     "context.saveSuccessToast": "Environment saved.",
     "context.saveErrorToast": "Could not save the environment.",
     "context.validationErrorToast": "Please review the highlighted fields.",
+
+    "health.unknown": "No health data",
+    "health.on_track": "On track",
+    "health.needs_watering_soon": "Watering soon",
+    "health.overdue_watering": "Watering overdue",
 
     "role.owner": "Owner",
     "role.admin": "Admin",
@@ -909,6 +919,11 @@ const dictionaries = {
     "context.saveSuccessToast": "Ambiente guardado.",
     "context.saveErrorToast": "No se pudo guardar el ambiente.",
     "context.validationErrorToast": "Revisa los campos destacados.",
+
+    "health.unknown": "Sin datos de salud",
+    "health.on_track": "A tiempo",
+    "health.needs_watering_soon": "Riego pronto",
+    "health.overdue_watering": "Riego atrasado",
 
     "role.owner": "Propietario",
     "role.admin": "Administrador",
