@@ -48,17 +48,7 @@ function AppShell() {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="flex items-center justify-between border-b border-border px-5 py-4">
-        <span className="text-lg font-semibold tracking-tight">{t("app.name")}</span>
-        <div className="flex items-center gap-2">
-          <LanguageSwitcher />
-          <Button variant="ghost" size="sm" onClick={handleSignOut}>
-            {t("shell.signOut")}
-          </Button>
-        </div>
-      </header>
-
+    <div>
       <main className="mx-auto w-full max-w-2xl space-y-6 px-5 py-6">
         {isLoading ? (
           <p className="text-sm text-muted-foreground">{t("shell.loading")}</p>
