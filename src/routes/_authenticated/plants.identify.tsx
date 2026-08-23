@@ -194,6 +194,15 @@ function IdentifyPlantPage() {
         return;
       }
 
+      // Precedence: the provider explicitly said this is not a plant.
+      // Any candidates returned in this case are ignored for routing.
+      if (result.isPlant === false) {
+        setIsNotPlant(true);
+        setCandidates([]);
+        setStep("uncertain");
+        return;
+      }
+
       // A candidate is useful when it carries at least one name. Neither
       // broadOnly, nor rank, nor a missing confidence downgrades it to failure.
       const useful = result.candidates.filter(
@@ -201,11 +210,13 @@ function IdentifyPlantPage() {
       );
 
       if (useful.length === 0) {
+        setIsNotPlant(false);
         setCandidates([]);
         setStep("uncertain");
         return;
       }
 
+      setIsNotPlant(false);
       setCandidates(useful);
       setSelectedIndex(0);
       setStep("result");
