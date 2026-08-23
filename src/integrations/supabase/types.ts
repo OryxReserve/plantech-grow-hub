@@ -192,6 +192,66 @@ export type Database = {
           },
         ]
       }
+      plant_care_profile: {
+        Row: {
+          account_id: string
+          created_at: string
+          fertilizer_type: string | null
+          fertilizing_interval_days: number | null
+          fertilizing_note: string | null
+          id: string
+          light_exposure: string | null
+          light_note: string | null
+          plant_id: string
+          updated_at: string
+          watering_amount_note: string | null
+          watering_interval_days: number | null
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          fertilizer_type?: string | null
+          fertilizing_interval_days?: number | null
+          fertilizing_note?: string | null
+          id?: string
+          light_exposure?: string | null
+          light_note?: string | null
+          plant_id: string
+          updated_at?: string
+          watering_amount_note?: string | null
+          watering_interval_days?: number | null
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          fertilizer_type?: string | null
+          fertilizing_interval_days?: number | null
+          fertilizing_note?: string | null
+          id?: string
+          light_exposure?: string | null
+          light_note?: string | null
+          plant_id?: string
+          updated_at?: string
+          watering_amount_note?: string | null
+          watering_interval_days?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plant_care_profile_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plant_care_profile_plant_id_account_id_fkey"
+            columns: ["plant_id", "account_id"]
+            isOneToOne: false
+            referencedRelation: "plants"
+            referencedColumns: ["id", "account_id"]
+          },
+        ]
+      }
       plant_photos: {
         Row: {
           account_id: string

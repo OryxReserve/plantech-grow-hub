@@ -1,106 +1,76 @@
-# Fase 2.1 — SQL de `plant_care_profile` (PLAN)
+# Fase 2.1 — Perfil Individual da Planta (UI)
 
-## 1. Schema real encontrado
+Transformar a tela de detalhe atual (lista simples de campos) em um perfil de acompanhamento: cabeçalho com foto, abas de cuidado (Água, Luz, Fertilizante), edição dos cuidados e timeline de leitura.
 
-### 1.1 `public.plants`
-- Schema/tabela: `public.plants`
-- PK: `plants_pkey` → `PRIMARY KEY (id)`, tipo `uuid`, default `gen_random_uuid()`
-- `account_id uuid NOT NULL`
-- UNIQUE composta existente: `plants_id_account_id_key → UNIQUE (id, account_id)` — é exatamente o alvo da FK composta usada pelas tabelas filhas
-- FKs: `plants_account_id_fkey (account_id) → accounts(id) ON DELETE CASCADE`; `plants_created_by_fkey (created_by) → auth.users(id) ON DELETE SET NULL`
-- CHECK: `plants_nickname_check` (1..120 chars no `nickname` após trim)
-- Trigger: `trg_plants_updated_at BEFORE UPDATE ... EXECUTE FUNCTION set_updated_at()`
+## 1. Rotas e arquivos
 
-### 1.2 Vínculo usuário↔conta
-- Tabela: `public.account_members` — colunas `user_id uuid`, `account_id uuid`, `role account_member_role`, `status account_member_status`
-- As policies **não** consultam `account_members` diretamente; usam a função SECURITY DEFINER `public.is_account_member(_account_id uuid) returns boolean`, que valida `user_id = auth.uid() AND status = 'active'`
-- Funções auxiliares disponíveis: `is_account_member`, `has_account_role`, `can_manage_account`, `is_platform_admin`
+Rota mantida: `/plants/$plantId` (`src/routes/_authenticated/plants.$plantId.index.tsx`). Sem rotas novas — a edição de cuidados acontece em um Sheet na própria tela.
 
-### 1.3 `updated_at`
-- Função reutilizável já existe: `public.set_updated_at()` (`SET search_path TO 'public'`)
-- Padrão do projeto: **reutilizar** essa função; cada tabela cria apenas o seu trigger (`trg_<tabela>_updated_at`). Não criar função nova.
+Alterar:
+- `src/routes/_authenticated/plants.$plantId.index.tsx` — nova composição (hero + abas + timeline), mantendo estados de loading/erro/404 e o fluxo de excluir/editar já existentes.
+- `src/i18n/translations.ts` — novas chaves pt/en/es para abas, campos de cuidado, tipos do log, estados vazios e mensagens de sucesso/erro.
 
-### 1.4 Padrão real de RLS/grants
-- Padrão de policy nas tabelas multi-tenant (`plants`, `plant_photos`, `plant_care_log`): 4 policies separadas (`_select`, `_insert`, `_update`, `_delete`), `TO authenticated`, com `USING (is_account_member(account_id))` e `WITH CHECK (is_account_member(account_id))`
-- Grants reais hoje nessas tabelas: `anon`, `authenticated` e `service_role` com privilégios completos (o isolamento vem 100% da RLS). Para a nova tabela vou aplicar o padrão mais seguro e recomendado: **somente `authenticated` (SELECT/INSERT/UPDATE/DELETE) e `service_role` (ALL)** — sem `anon`, já que nenhuma policy permite acesso anônimo.
+Criar:
+- `src/lib/plant-care-profile.ts` — query + upsert do `plant_care_profile`.
+- `src/lib/plant-care-log.ts` — query somente leitura da timeline.
+- `src/components/plants/profile/plant-hero.tsx` — foto principal, apelido, espécie/nome científico, estado vazio de foto.
+- `src/components/plants/profile/care-summary.tsx` — abas Água / Luz / Fertilizante com valores ou "ainda não configurado".
+- `src/components/plants/profile/care-profile-sheet.tsx` — formulário de edição.
+- `src/components/plants/profile/care-timeline.tsx` — lista de eventos + estado vazio.
 
-### 1.5 `public.plant_care_log`
-- Nome exato confirmado: `public.plant_care_log`
-- Possui `account_id uuid NOT NULL` e `plant_id uuid NOT NULL`, com FK composta `(plant_id, account_id) → plants(id, account_id) ON DELETE CASCADE`
-- Demais colunas: `id`, `care_type`, `performed_at` (default `now()`), `performed_by`, `notes`, `created_at`
-- Tipos de evento suportados hoje (enum `care_log_type`): `watering`, `fertilizing`, `pruning`, `repotting`, `treatment`, `note`
-- Sem trigger de `updated_at` (a tabela não tem coluna `updated_at`) — nada a alterar aqui
+## 2. Busca e junção de dados
 
-## 2. Compatibilidade / riscos
+Quatro queries React Query independentes, todas com chave prefixada por `accountId` e filtro explícito `.eq("account_id", activeAccountId)`, seguindo o padrão de `src/lib/plants.ts`. Nenhum `account_id` vem da URL — sempre do provider `useActiveAccount`; RLS continua sendo a barreira real.
 
-- A FK composta `(plant_id, account_id) → plants(id, account_id)` é suportada pela UNIQUE existente; é o que impede troca de conta ou vínculo cruzado entre tenants.
-- `UNIQUE (plant_id)` garante o 1:1 real. Como `plant_id` é único, `ON DELETE CASCADE` remove o perfil junto com a planta.
-- `light_exposure` fica como `text` com CHECK de valores permitidos (`low`, `medium`, `bright_indirect`, `direct`) — evita criar enum Postgres e futura migração de enum. Nullable, para planta sem configuração.
-- Intervalos com CHECK `> 0 AND <= 3650` para impedir valores absurdos/negativos; nullable enquanto o usuário não configurar.
-- Nenhuma alteração em `plants`, `plant_care_log`, `ai_usage_log`; nada de IA; nada de UI.
-- Risco baixo e reversível: tabela nova e isolada; nenhum código atual referencia esse nome.
-- Após rodar o SQL, os tipos gerados do Supabase precisam ser regenerados antes do BUILD 2.1 usar a tabela.
+- `plants` — `plantDetailQuery` (já existe).
+- `plant_photos` — reutiliza o módulo atual; o hero usa a foto `is_primary`, com fallback para a mais recente e, na ausência, ilustração/ícone de estado vazio.
+- `plant_care_profile` — `maybeSingle()` por `plant_id`, retornando `null` quando não existir.
+- `plant_care_log` — `select` por `plant_id`, `order performed_at desc`, `limit 20`.
 
-## 3. SQL final pronto para colar no SQL Editor
+Sem joins no banco: a composição é feita no cliente, o que evita acoplar o shape do PostgREST e mantém cada bloco com seu próprio estado de loading/erro.
 
-```sql
--- Fase 2.1 — plant_care_profile (1:1 com plants, multi-tenant por account_id)
+## 3. Create-or-update seguro
 
-CREATE TABLE public.plant_care_profile (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  account_id uuid NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
-  plant_id uuid NOT NULL UNIQUE,
-  watering_interval_days integer,
-  watering_amount_note text,
-  light_exposure text,
-  light_note text,
-  fertilizing_interval_days integer,
-  fertilizer_type text,
-  fertilizing_note text,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT plant_care_profile_plant_id_account_id_fkey
-    FOREIGN KEY (plant_id, account_id)
-    REFERENCES public.plants(id, account_id) ON DELETE CASCADE,
-  CONSTRAINT plant_care_profile_watering_interval_check
-    CHECK (watering_interval_days IS NULL
-           OR (watering_interval_days > 0 AND watering_interval_days <= 3650)),
-  CONSTRAINT plant_care_profile_fertilizing_interval_check
-    CHECK (fertilizing_interval_days IS NULL
-           OR (fertilizing_interval_days > 0 AND fertilizing_interval_days <= 3650)),
-  CONSTRAINT plant_care_profile_light_exposure_check
-    CHECK (light_exposure IS NULL
-           OR light_exposure IN ('low', 'medium', 'bright_indirect', 'direct'))
-);
+`upsertPlantCareProfile(accountId, plantId, input)` usa `upsert` com `onConflict: "plant_id"`, gravando sempre `account_id: activeAccountId` e `plant_id` a partir do registro carregado da planta. A FK composta `(plant_id, account_id) -> plants(id, account_id)` já impede combinação de conta/planta inválida, e a RLS bloqueia contas de terceiros. O cliente nunca aceita `account_id` externo.
 
-CREATE INDEX plant_care_profile_account_id_idx
-  ON public.plant_care_profile (account_id);
+Validação no cliente (espelho leve do schema, sem duplicá-lo):
+- intervalos: inteiro entre 1 e 3650, ou vazio → `null`.
+- `light_exposure`: `low | medium | bright_indirect | direct`, ou `null`, via Select tipado a partir do union já gerado nos tipos.
+- textos: `trim`, vazio → `null`.
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.plant_care_profile TO authenticated;
-GRANT ALL ON public.plant_care_profile TO service_role;
+Erro do banco é exibido inline no Sheet (não só toast); sucesso mostra confirmação inline e invalida a query do perfil de cuidado.
 
-ALTER TABLE public.plant_care_profile ENABLE ROW LEVEL SECURITY;
+## 4. Ausência do perfil de cuidado
 
-CREATE POLICY plant_care_profile_select
-  ON public.plant_care_profile FOR SELECT TO authenticated
-  USING (public.is_account_member(account_id));
+`null` é estado normal, não erro. Cada bloco mostra "ainda não configurado" com a ação primária "Configurar cuidados"; havendo perfil, a ação vira "Editar cuidados". O Sheet abre em branco no caso de ausência e o primeiro salvamento cria o registro.
 
-CREATE POLICY plant_care_profile_insert
-  ON public.plant_care_profile FOR INSERT TO authenticated
-  WITH CHECK (public.is_account_member(account_id));
+## 5. Fora do escopo da Fase 2.1
 
-CREATE POLICY plant_care_profile_update
-  ON public.plant_care_profile FOR UPDATE TO authenticated
-  USING (public.is_account_member(account_id))
-  WITH CHECK (public.is_account_member(account_id));
+- Cálculo de próxima rega, status ou atraso de cuidado.
+- Lembretes, notificações, jobs, agendamento.
+- Registro/edição/exclusão de eventos em `plant_care_log` (leitura apenas).
+- Conteúdo de IA: "Sobre a espécie", FAQ, recomendações.
+- Qualquer alteração de schema, novas tabelas ou colunas.
+- Refactor de rotas de identificação, listagem ou formulário de planta.
 
-CREATE POLICY plant_care_profile_delete
-  ON public.plant_care_profile FOR DELETE TO authenticated
-  USING (public.is_account_member(account_id));
+## 6. Riscos e dependências
 
-CREATE TRIGGER trg_plant_care_profile_updated_at
-  BEFORE UPDATE ON public.plant_care_profile
-  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-```
+- Tipos gerados já contêm `plant_care_profile` — confirmado; sem dependência de migração.
+- `plant_care_log` não tem UI de escrita ainda, então a timeline provavelmente aparecerá vazia; o estado vazio precisa ser explicativo e não parecer bug.
+- Fotos usam URLs assinadas de 1h; o hero reaproveita a query de fotos existente para não duplicar assinatura.
+- Crescimento da tela: mitigado dividindo em componentes por bloco em vez de inflar o arquivo da rota.
+- Sem `light_exposure` como enum no banco (é CHECK), então a lista de opções vive em uma constante única compartilhada entre Select e validação.
 
-Próximo passo após executar: regenerar os tipos do backend e só então iniciar o BUILD 2.1 (UI do perfil + abas), sem tocar em Fase 3.
+## 7. Plano de BUILD e critérios de aceite
+
+Ordem: dados (`plant-care-profile.ts`, `plant-care-log.ts`) → i18n → componentes → rota.
+
+Aceite:
+- `/plants/$plantId` mostra hero com foto principal ou estado vazio, apelido e espécie/nome científico, com botão voltar.
+- Abas Água, Luz e Fertilizante mostram valores salvos ou "ainda não configurado".
+- "Configurar/Editar cuidados" abre o Sheet, salva e reflete na tela sem reload; erro aparece inline.
+- Perfil inexistente é criado no primeiro salvamento; existente é atualizado.
+- Timeline lista eventos existentes com rótulos traduzidos ou estado vazio claro.
+- Estados de loading, 404/sem acesso e erro seguem o padrão atual.
+- Toda a copy em pt/en/es; nomes técnicos em inglês.
+- Typecheck e build limpos.
