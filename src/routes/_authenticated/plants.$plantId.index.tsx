@@ -1,9 +1,14 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, ScanLine, Trash2 } from "lucide-react";
+import { Pencil, ScanLine, Settings2, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { PlantPhotoGallery } from "@/components/plants/photo-gallery";
+import { CareProfileSheet } from "@/components/plants/profile/care-profile-sheet";
+import { CareSummary } from "@/components/plants/profile/care-summary";
+import { CareTimeline } from "@/components/plants/profile/care-timeline";
+import { PlantHero } from "@/components/plants/profile/plant-hero";
 import { PlantScreen } from "@/components/plants/screen";
 import {
   AlertDialog,
@@ -20,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useActiveAccount } from "@/context/active-account";
 import { useI18n } from "@/i18n/i18n";
+import { plantCareProfileQuery } from "@/lib/plant-care-profile";
 import { deletePlant, plantDetailQuery, plantKeys } from "@/lib/plants";
 
 export const Route = createFileRoute("/_authenticated/plants/$plantId/")({
@@ -41,9 +47,15 @@ function PlantDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { activeAccountId, isLoading: accountLoading } = useActiveAccount();
+  const [careOpen, setCareOpen] = useState(false);
 
   const query = useQuery({
     ...plantDetailQuery(activeAccountId ?? "", plantId),
+    enabled: Boolean(activeAccountId),
+  });
+
+  const careProfile = useQuery({
+    ...plantCareProfileQuery(activeAccountId ?? "", plantId),
     enabled: Boolean(activeAccountId),
   });
 
@@ -112,7 +124,36 @@ function PlantDetailPage() {
         </div>
       ) : (
         <>
-          <section className="rounded-xl border border-border px-4">
+          <PlantHero accountId={activeAccountId} plant={plant} />
+
+          <CareSummary profile={careProfile.data ?? null} />
+
+          {careProfile.isError ? (
+            <p role="alert" className="mt-3 text-sm text-destructive">
+              {t("care.loadError")}
+            </p>
+          ) : null}
+
+          <Button
+            className="mt-4 h-12 w-full text-base"
+            onClick={() => setCareOpen(true)}
+            disabled={careProfile.isPending}
+          >
+            <Settings2 className="size-5" aria-hidden />
+            {careProfile.data ? t("care.edit") : t("care.configure")}
+          </Button>
+
+          <CareProfileSheet
+            accountId={activeAccountId}
+            plantId={plant.id}
+            profile={careProfile.data ?? null}
+            open={careOpen}
+            onOpenChange={setCareOpen}
+          />
+
+          <CareTimeline accountId={activeAccountId} plantId={plant.id} />
+
+          <section className="mt-8 rounded-xl border border-border px-4">
             <Field label={t("field.nickname")} value={plant.nickname} />
             <Field label={t("field.speciesName")} value={plant.species_name ?? dash} />
             <Field
