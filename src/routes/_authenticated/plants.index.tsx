@@ -1,0 +1,98 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { ChevronRight, Leaf, Plus } from "lucide-react";
+
+import { PlantScreen } from "@/components/plants/screen";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useActiveAccount } from "@/context/active-account";
+import { useI18n } from "@/i18n/i18n";
+import { plantsListQuery } from "@/lib/plants";
+
+export const Route = createFileRoute("/_authenticated/plants/")({
+  component: PlantsListPage,
+});
+
+function PlantsListPage() {
+  const { t } = useI18n();
+  const { activeAccountId, isLoading: accountLoading } = useActiveAccount();
+
+  const query = useQuery({
+    ...plantsListQuery(activeAccountId ?? ""),
+    enabled: Boolean(activeAccountId),
+  });
+
+  return (
+    <PlantScreen
+      title={t("plants.title")}
+      backTo="/app"
+      backLabel={t("plants.back")}
+      action={
+        activeAccountId ? (
+          <Button asChild size="sm">
+            <Link to="/plants/new">
+              <Plus className="size-4" />
+              {t("plants.new")}
+            </Link>
+          </Button>
+        ) : null
+      }
+    >
+      {accountLoading || (activeAccountId && query.isPending) ? (
+        <div className="space-y-3" aria-label={t("plants.loading")}>
+          <Skeleton className="h-20 w-full rounded-xl" />
+          <Skeleton className="h-20 w-full rounded-xl" />
+          <Skeleton className="h-20 w-full rounded-xl" />
+        </div>
+      ) : !activeAccountId ? (
+        <p className="text-sm text-muted-foreground">{t("plants.noAccountData")}</p>
+      ) : query.isError ? (
+        <div className="rounded-xl border border-destructive/40 p-4">
+          <p className="text-sm text-destructive">{t("plants.error")}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            onClick={() => query.refetch()}
+          >
+            {t("plants.retry")}
+          </Button>
+        </div>
+      ) : (query.data?.length ?? 0) === 0 ? (
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border px-6 py-12 text-center">
+          <Leaf className="size-8 text-primary" />
+          <h2 className="text-base font-medium">{t("plants.empty.title")}</h2>
+          <p className="max-w-xs text-sm text-muted-foreground">
+            {t("plants.empty.body")}
+          </p>
+          <Button asChild className="mt-2">
+            <Link to="/plants/new">{t("plants.empty.cta")}</Link>
+          </Button>
+        </div>
+      ) : (
+        <ul className="space-y-3">
+          {query.data!.map((plant) => (
+            <li key={plant.id}>
+              <Link
+                to="/plants/$plantId"
+                params={{ plantId: plant.id }}
+                className="flex items-center gap-3 rounded-xl border border-border p-4 transition-colors hover:bg-accent"
+              >
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <Leaf className="size-5 text-primary" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium">{plant.nickname}</span>
+                  <span className="block truncate text-sm text-muted-foreground">
+                    {plant.species_name ?? plant.scientific_name ?? plant.location ?? t("plants.noValue")}
+                  </span>
+                </span>
+                <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </PlantScreen>
+  );
+}
