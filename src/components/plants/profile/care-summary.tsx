@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "@/i18n/i18n";
+import { LIGHT_LABEL } from "@/components/plants/profile/care-profile-sheet";
 import { isLightExposure, type PlantCareProfileRow } from "@/lib/plant-care-profile";
 
 function CareValue({ label, value }: { label: string; value: string }) {
@@ -38,9 +39,8 @@ export function CareSummary({ profile }: { profile: PlantCareProfileRow | null }
 
   const waterInterval = interval(profile?.watering_interval_days ?? null);
   const waterNote = profile?.watering_amount_note ?? null;
-  const lightValue = isLightExposure(profile?.light_exposure ?? null)
-    ? t(`care.light.${profile!.light_exposure as "low"}`)
-    : null;
+  const exposure = profile?.light_exposure ?? null;
+  const lightValue = isLightExposure(exposure) ? t(LIGHT_LABEL[exposure]) : null;
   const lightNote = profile?.light_note ?? null;
   const fertInterval = interval(profile?.fertilizing_interval_days ?? null);
   const fertType = profile?.fertilizer_type ?? null;
