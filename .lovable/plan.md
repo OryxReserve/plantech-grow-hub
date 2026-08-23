@@ -1,92 +1,106 @@
-# Fase 2 — Perfil Individual da Planta (Plan)
+# Fase 2.1 — SQL de `plant_care_profile` (PLAN)
 
-## 1. Estado atual encontrado no código
+## 1. Schema real encontrado
 
-Base já existente e reaproveitável:
+### 1.1 `public.plants`
+- Schema/tabela: `public.plants`
+- PK: `plants_pkey` → `PRIMARY KEY (id)`, tipo `uuid`, default `gen_random_uuid()`
+- `account_id uuid NOT NULL`
+- UNIQUE composta existente: `plants_id_account_id_key → UNIQUE (id, account_id)` — é exatamente o alvo da FK composta usada pelas tabelas filhas
+- FKs: `plants_account_id_fkey (account_id) → accounts(id) ON DELETE CASCADE`; `plants_created_by_fkey (created_by) → auth.users(id) ON DELETE SET NULL`
+- CHECK: `plants_nickname_check` (1..120 chars no `nickname` após trim)
+- Trigger: `trg_plants_updated_at BEFORE UPDATE ... EXECUTE FUNCTION set_updated_at()`
 
-- `src/routes/_authenticated/plants.$plantId.index.tsx` — tela de detalhe atual: lista simples de campos (`Field`), botão de re-identificar, galeria de fotos e exclusão. É a base direta do perfil.
-- `src/components/plants/photo-gallery.tsx` — galeria com foto primária (`is_primary`) e signed URLs; serve para o card de topo.
-- `src/components/plants/plant-form.tsx` + `plants.$plantId.edit.tsx` — edição dos campos básicos (apelido, espécie, científico, local, aquisição, notas).
-- `src/components/plants/screen.tsx` — shell mobile-first com título/voltar/ação.
-- `src/lib/plants.ts` — query keys e CRUD já 100% escopados por `account_id` (`plantsListQuery`, `plantDetailQuery`, `createPlant`, `updatePlant`, `deletePlant`).
-- `src/lib/plant-photos.ts` — upload/signed URL/primary/delete.
-- `src/lib/ai/*` — `AiVisionProvider`, gateway Lovable, `usage-log.server.ts` (insert server-side via admin), stub LogoriOn. Reutilizável para gerar texto de espécie/FAQ.
-- `src/lib/plant-identification.functions.ts` — padrão pronto de server function com `requireSupabaseAuth` + validação de posse do `plant_id`.
-- `src/i18n/translations.ts` — pt/en/es, chaves `plants.*`, `field.*`, `identify.*`.
+### 1.2 Vínculo usuário↔conta
+- Tabela: `public.account_members` — colunas `user_id uuid`, `account_id uuid`, `role account_member_role`, `status account_member_status`
+- As policies **não** consultam `account_members` diretamente; usam a função SECURITY DEFINER `public.is_account_member(_account_id uuid) returns boolean`, que valida `user_id = auth.uid() AND status = 'active'`
+- Funções auxiliares disponíveis: `is_account_member`, `has_account_role`, `can_manage_account`, `is_platform_admin`
 
-Dados já existentes no banco: `plants` (nickname, species_name, scientific_name, location, acquired_at, notes, is_archived), `plant_photos`, `plant_care_log` (tabela existe, **sem nenhum uso no código hoje**), `products`, `ai_usage_log`.
+### 1.3 `updated_at`
+- Função reutilizável já existe: `public.set_updated_at()` (`SET search_path TO 'public'`)
+- Padrão do projeto: **reutilizar** essa função; cada tabela cria apenas o seu trigger (`trg_<tabela>_updated_at`). Não criar função nova.
 
-## 2. Gaps de dados
+### 1.4 Padrão real de RLS/grants
+- Padrão de policy nas tabelas multi-tenant (`plants`, `plant_photos`, `plant_care_log`): 4 policies separadas (`_select`, `_insert`, `_update`, `_delete`), `TO authenticated`, com `USING (is_account_member(account_id))` e `WITH CHECK (is_account_member(account_id))`
+- Grants reais hoje nessas tabelas: `anon`, `authenticated` e `service_role` com privilégios completos (o isolamento vem 100% da RLS). Para a nova tabela vou aplicar o padrão mais seguro e recomendado: **somente `authenticated` (SELECT/INSERT/UPDATE/DELETE) e `service_role` (ALL)** — sem `anon`, já que nenhuma policy permite acesso anônimo.
 
-Faltam para a UX mínima da Fase 2:
+### 1.5 `public.plant_care_log`
+- Nome exato confirmado: `public.plant_care_log`
+- Possui `account_id uuid NOT NULL` e `plant_id uuid NOT NULL`, com FK composta `(plant_id, account_id) → plants(id, account_id) ON DELETE CASCADE`
+- Demais colunas: `id`, `care_type`, `performed_at` (default `now()`), `performed_by`, `notes`, `created_at`
+- Tipos de evento suportados hoje (enum `care_log_type`): `watering`, `fertilizing`, `pruning`, `repotting`, `treatment`, `note`
+- Sem trigger de `updated_at` (a tabela não tem coluna `updated_at`) — nada a alterar aqui
 
-| Necessidade da Fase 2 | Existe? | Gap |
-|---|---|---|
-| Foto de capa + apelido + espécie no card | Sim | apenas UI |
-| Indicador visual de status | Não | precisa de referência de rega (último evento + intervalo) |
-| Aba Água (intervalo, volume, última rega) | Não | campos de cuidado por planta |
-| Aba Luz (exposição, orientação) | Não | campos de cuidado por planta |
-| Aba Fertilizante (tipo, intervalo, último) | Não | campos de cuidado por planta |
-| "Sobre a espécie" (texto gerado 1x, cacheado) | Não | tabela de cache por espécie/planta |
-| FAQ por planta gerada 1x por IA e cacheada | Não | tabela de cache + status de geração |
-| Registro de rega/fertilização (para status) | Parcial | `plant_care_log` existe, sem camada de acesso nem UI |
+## 2. Compatibilidade / riscos
 
-## 3. Gaps de UI/UX
+- A FK composta `(plant_id, account_id) → plants(id, account_id)` é suportada pela UNIQUE existente; é o que impede troca de conta ou vínculo cruzado entre tenants.
+- `UNIQUE (plant_id)` garante o 1:1 real. Como `plant_id` é único, `ON DELETE CASCADE` remove o perfil junto com a planta.
+- `light_exposure` fica como `text` com CHECK de valores permitidos (`low`, `medium`, `bright_indirect`, `direct`) — evita criar enum Postgres e futura migração de enum. Nullable, para planta sem configuração.
+- Intervalos com CHECK `> 0 AND <= 3650` para impedir valores absurdos/negativos; nullable enquanto o usuário não configurar.
+- Nenhuma alteração em `plants`, `plant_care_log`, `ai_usage_log`; nada de IA; nada de UI.
+- Risco baixo e reversível: tabela nova e isolada; nenhum código atual referencia esse nome.
+- Após rodar o SQL, os tipos gerados do Supabase precisam ser regenerados antes do BUILD 2.1 usar a tabela.
 
-- Detalhe atual é uma lista plana, sem hierarquia de card/hero.
-- Sem componente de abas (Água / Luz / Fertilizante) — `@/components/ui/tabs` do shadcn já está disponível.
-- Sem edição granular por aba (hoje só um formulário único).
-- Sem seção "Sobre a espécie" nem FAQ acordeão.
-- Sem badge de status ("em dia" / "regar em breve" / "atrasada") derivado de dados.
+## 3. SQL final pronto para colar no SQL Editor
 
-## 4. O que é SQL Editor (antes do Build)
+```sql
+-- Fase 2.1 — plant_care_profile (1:1 com plants, multi-tenant por account_id)
 
-Apenas duas mudanças de estrutura, ambas multi-tenant por `account_id` com RLS e GRANTs no mesmo padrão das tabelas atuais:
+CREATE TABLE public.plant_care_profile (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id uuid NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
+  plant_id uuid NOT NULL UNIQUE,
+  watering_interval_days integer,
+  watering_amount_note text,
+  light_exposure text,
+  light_note text,
+  fertilizing_interval_days integer,
+  fertilizer_type text,
+  fertilizing_note text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT plant_care_profile_plant_id_account_id_fkey
+    FOREIGN KEY (plant_id, account_id)
+    REFERENCES public.plants(id, account_id) ON DELETE CASCADE,
+  CONSTRAINT plant_care_profile_watering_interval_check
+    CHECK (watering_interval_days IS NULL
+           OR (watering_interval_days > 0 AND watering_interval_days <= 3650)),
+  CONSTRAINT plant_care_profile_fertilizing_interval_check
+    CHECK (fertilizing_interval_days IS NULL
+           OR (fertilizing_interval_days > 0 AND fertilizing_interval_days <= 3650)),
+  CONSTRAINT plant_care_profile_light_exposure_check
+    CHECK (light_exposure IS NULL
+           OR light_exposure IN ('low', 'medium', 'bright_indirect', 'direct'))
+);
 
-1. `plant_care_profile` — 1:1 com `plants` (`plant_id` único, `account_id` obrigatório, FK composta `(plant_id, account_id)` como em `plant_photos`):
-   - água: `watering_interval_days int`, `watering_amount_note text`
-   - luz: `light_exposure text` (enum textual controlado na app: low/medium/bright_indirect/direct), `light_note text`
-   - fertilizante: `fertilizing_interval_days int`, `fertilizer_type text`, `fertilizing_note text`
-   - `created_at/updated_at` + trigger `set_updated_at`
-2. `plant_ai_content` — cache de conteúdo gerado por IA, 1 linha por (planta, tipo):
-   - `account_id`, `plant_id`, `kind text` ('species_overview' | 'faq'), `content jsonb`, `model text`, `generated_at`
-   - `UNIQUE (plant_id, kind)` — garante geração única e impede repetir chamada
-   - RLS: SELECT para membros da conta; INSERT/UPDATE **somente server-side** (service_role), igual ao padrão de `ai_usage_log`
+CREATE INDEX plant_care_profile_account_id_idx
+  ON public.plant_care_profile (account_id);
 
-`plant_care_log` já existe e **não precisa de alteração** — será só consumido.
-`ai_usage_log` permanece inalterado (a geração de texto reaproveita o log existente).
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.plant_care_profile TO authenticated;
+GRANT ALL ON public.plant_care_profile TO service_role;
 
-## 5. O que é Build
+ALTER TABLE public.plant_care_profile ENABLE ROW LEVEL SECURITY;
 
-Somente UI + camada de dados cliente/servidor:
+CREATE POLICY plant_care_profile_select
+  ON public.plant_care_profile FOR SELECT TO authenticated
+  USING (public.is_account_member(account_id));
 
-- `src/lib/plant-care-profile.ts` — query/upsert escopado por `account_id`.
-- `src/lib/plant-care-log.ts` — últimos eventos por tipo + registro rápido de rega/fertilização.
-- `src/components/plants/profile/*` — hero card, badge de status, abas, editores por aba.
-- `src/lib/plant-ai-content.functions.ts` — server function de geração 1x com leitura de cache antes de chamar IA.
-- i18n pt/en/es das novas chaves.
+CREATE POLICY plant_care_profile_insert
+  ON public.plant_care_profile FOR INSERT TO authenticated
+  WITH CHECK (public.is_account_member(account_id));
 
-## 6. Escopo mínimo recomendado para Fase 2.1
+CREATE POLICY plant_care_profile_update
+  ON public.plant_care_profile FOR UPDATE TO authenticated
+  USING (public.is_account_member(account_id))
+  WITH CHECK (public.is_account_member(account_id));
 
-**Fase 2.1 (primeiro BUILD, sem IA):**
-- SQL: criar `plant_care_profile`.
-- Redesenhar `plants.$plantId.index.tsx` como perfil: hero card (foto primária + apelido + espécie + badge de status) e abas Água / Luz / Fertilizante.
-- Ler/salvar `plant_care_profile` com edição granular por aba (sheet/dialog por aba, sem sair da tela).
-- Badge de status derivado de `watering_interval_days` + último evento `watering` de `plant_care_log`, com ação "Registrar rega" (insert simples). Sem lembrete, sem agenda, sem push — apenas estado presente.
+CREATE POLICY plant_care_profile_delete
+  ON public.plant_care_profile FOR DELETE TO authenticated
+  USING (public.is_account_member(account_id));
 
-**Fase 2.2:** SQL `plant_ai_content` + seção "Sobre a espécie" gerada 1x e cacheada.
+CREATE TRIGGER trg_plant_care_profile_updated_at
+  BEFORE UPDATE ON public.plant_care_profile
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+```
 
-**Fase 2.3:** FAQ por planta (mesma tabela, `kind='faq'`), acordeão, geração 1x sob demanda.
-
-## 7. Riscos e decisões pendentes
-
-Riscos:
-- **Fronteira com a Fase 3:** o badge de status é o ponto de contágio. Regra fixa: Fase 2 só calcula estado no momento da visualização; nada de agendamento, notificação ou job.
-- **Acoplamento IA/perfil:** manter a geração isolada em server function com cache-first; falha de IA não pode quebrar o perfil (seção degrada para vazio).
-- **Custo de IA:** `UNIQUE (plant_id, kind)` + leitura de cache antes da chamada evita regeneração; sem botão de "regenerar" na Fase 2.
-- **Plantas sem espécie identificada:** "Sobre a espécie" e FAQ precisam de fallback quando `species_name` e `scientific_name` estão vazios.
-
-Decisões pendentes (não bloqueiam a 2.1):
-1. Cache de espécie por planta (mais simples, mais chamadas) ou por espécie compartilhada na conta (menos chamadas, mais complexidade). Recomendação: por planta na 2.2.
-2. Registro rápido de rega/fertilização entra já na 2.1 (recomendado, é o que dá sentido ao badge) ou fica para depois.
-3. Enum de luz como `text` validado na app (recomendado, evita migração de enum futura) ou enum Postgres.
+Próximo passo após executar: regenerar os tipos do backend e só então iniciar o BUILD 2.1 (UI do perfil + abas), sem tocar em Fase 3.
