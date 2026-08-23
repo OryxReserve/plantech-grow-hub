@@ -2,9 +2,15 @@ import { differenceInDays } from "date-fns";
 
 export type HealthStatus = "healthy" | "needs_attention" | "overdue" | "unknown";
 
+export type HealthJustificationKey =
+  | "health.unknown"
+  | "health.on_track"
+  | "health.needs_watering_soon"
+  | "health.overdue_watering";
+
 export interface HealthResult {
   status: HealthStatus;
-  justificationKey: string;
+  justificationKey: HealthJustificationKey;
   daysOverdue?: number;
   daysUntilNext?: number;
 }
