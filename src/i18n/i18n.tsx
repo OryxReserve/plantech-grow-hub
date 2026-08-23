@@ -9,14 +9,13 @@ import {
 } from "react";
 
 import {
-  LOCALES,
+  DEFAULT_LOCALE,
+  LOCALE_STORAGE_KEY as STORAGE_KEY,
+  isLocale,
   translate,
   type Locale,
   type TranslationKey,
 } from "./translations";
-
-const STORAGE_KEY = "plantech.locale";
-const DEFAULT_LOCALE: Locale = "pt";
 
 type I18nValue = {
   locale: Locale;
@@ -25,10 +24,6 @@ type I18nValue = {
 };
 
 const I18nContext = createContext<I18nValue | null>(null);
-
-function isLocale(value: unknown): value is Locale {
-  return typeof value === "string" && (LOCALES as readonly string[]).includes(value);
-}
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   // Server render always uses the default locale; the stored/browser locale is
