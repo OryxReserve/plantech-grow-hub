@@ -1,79 +1,112 @@
-# Plantech — Fase 0 (PLAN)
+# Plantech — Fase 0: Trava de Arquitetura (PLAN)
 
-## Seção 1: Situação atual do backend/banco
+## Seção 1: Decisões que aprovo como estão
 
-Inspeção feita agora no projeto:
+- **1. Modelo de execução backend** — Correto. Nesta stack o runtime de servidor do TanStack Start (`createServerFn` + rotas em `src/routes/api/public/*`) é o caminho nativo. Supabase Edge Functions seriam uma segunda infraestrutura paralela sem ganho. Manter como "opcional, nunca padrão".
+- **2. Bootstrap no signup** — Correto e essencial. Trigger `AFTER INSERT ON auth.users` (`SECURITY DEFINER`, `search_path` fixo) criando `profiles` + `accounts` pessoal + `account_members` com `owner`. Nenhum usuário autenticado sem contexto de conta.
+- **3. Modelo de autorização** — Correto. `profiles` sem role, `account_members` como fonte única de verdade, três papéis (`owner`, `admin`, `member`). Ressalva técnica na Seção 2 (item A) sobre recursão de RLS.
+- **5. Escopo de autenticação v1** — Correto. E-mail/senha só. Social login depois é aditivo, não quebra nada.
+- **6. Escopo de produtos** — Correto. `products` por conta. Catálogo global é decisão de produto que ainda não temos dados para tomar.
+- **7. Política de log de IA** — Correto. Complemento na Seção 2 (item C) sobre retenção e escrita server-side.
+- **9. Padrão de storage** — Correto. Bucket privado, caminho `account_id/plant_id/arquivo`, política validando membership ativo pelo primeiro segmento do caminho.
+- **10. Disciplina de entrega** — Correto e é a regra mais importante da lista. Schema sem caminho vertical real é exatamente como nascem tabelas órfãs.
 
-- Não existe Lovable Cloud (Supabase) habilitado. Não há `src/integrations/supabase/`, não há pasta `supabase/`, e não há variáveis de conexão de banco disponíveis na sessão.
-- Consequência direta: **não existem** tabelas, views, enums, funções, triggers, políticas RLS, buckets de storage nem estruturas de auth. O inventário pedido nos itens 2, 3, 4, 5, 6, 7, 8 e 9 é vazio — não por omissão, mas porque o backend ainda não foi provisionado.
-- Frontend: template TanStack Start v1 (React 19 + TypeScript + Vite 7 + Tailwind v4) intocado. Única rota é `src/routes/index.tsx`, ainda com o placeholder em branco. Nenhum componente de produto, nenhuma i18n, nenhum PWA configurado.
+## Seção 2: Decisões que eu ajustaria
 
-Respostas objetivas:
+### A. Item 3 — RLS não pode consultar `account_members` diretamente
 
-| Pergunta | Resposta |
-| --- | --- |
-| Fundação multi-tenant segura? | Não existe |
-| Perfil de usuário / membership? | Não existe |
-| Bootstrap de admin? | Não existe |
-| RLS habilitado / políticas? | Não existe |
-| Tabelas órfãs, vazias ou suspeitas? | Nenhuma (banco inexistente) |
-| Estruturas irrelevantes a limpar? | Nenhuma |
+Política em `account_members` que consulta `account_members` gera recursão infinita e derruba a tabela inteira. Ajuste obrigatório: toda checagem passa por funções `SECURITY DEFINER` com `search_path = public`:
 
-Lado positivo: partimos de zero, sem dívida técnica nem tabelas legadas para migrar.
+- `is_account_member(_account_id uuid) → boolean` — membro com status `active`.
+- `has_account_role(_account_id uuid, _role account_member_role) → boolean`.
+- `is_platform_admin(_user_id uuid) → boolean`.
 
-## Seção 2: Riscos e inconsistências
+As políticas das tabelas de negócio chamam apenas essas funções. Isso também mantém as policies curtas e auditáveis.
 
-1. **Edge Functions vs. stack real.** O contexto do produto assume Supabase Edge Functions, mas este projeto roda TanStack Start, que já tem runtime de servidor próprio. Nesta stack a lógica de servidor deve usar `createServerFn` (chamadas internas) e rotas de servidor em `src/routes/api/public/*` (webhooks e chamadas externas). Criar Edge Functions aqui gera duplicidade e código desconectado. Recomendação: manter todo o backend de aplicação em server functions.
-2. **Gateway de IA LogoriOn.** Não há credencial nem documentação do LogoriOn no projeto. Precisamos de URL base, formato de autenticação e contrato de request/response antes de modelar `ai_usage_log` e o fluxo de identificação.
-3. **Risco clássico de multi-tenant tardio.** Se qualquer tabela de negócio nascer com `user_id` em vez de `account_id`, a correção depois é migração dolorosa. Regra fechada desde a primeira migration: toda tabela de negócio tem `account_id NOT NULL`.
-4. **Risco de tabela órfã.** Sem CRUD e tela real, uma tabela criada na Fase 0 vira peso morto. Mitigação: a Fase 0 entrega schema + telas mínimas ligadas a ele, não schema isolado.
-5. **Bootstrap de admin.** Definir admin por e-mail no frontend é vulnerabilidade. Deve ser resolvido no banco (trigger/função `SECURITY DEFINER` no cadastro), nunca no cliente.
-6. **`ai_usage_log` como vetor de vazamento.** Sem regra explícita, payloads de IA acabam guardando base64 e URLs assinadas. Regra: só JSON estruturado mínimo (modelo, tokens, latência, tipo de tarefa, resultado resumido, custo).
-7. **Idiomas.** PT/EN/ES desde o início exige decidir se textos de catálogo (ex.: `products`, nomes de plantas) são traduzidos em coluna JSONB ou tabela de tradução. Definir na Fase 0 evita retrabalho.
+Segundo ajuste: `status` de membership deve ser enum (`invited`, `active`, `suspended`) e `is_account_member` exige `active`. Sem isso, um convite pendente já dá acesso aos dados.
 
-## Seção 3: O que falta para uma Fase 0 correta
+### B. Item 4 — Super admin não deve ser resolvido por e-mail em runtime
 
-- Habilitar Lovable Cloud (provisiona banco, auth e storage).
-- Autenticação por e-mail/senha e a estrutura de rotas protegidas.
-- Todo o schema base, RLS, grants e funções auxiliares.
-- Bucket de storage para fotos de plantas com políticas por `account_id`.
-- Camada de i18n no frontend (PT/EN/ES) e configuração PWA mobile-first.
-- Um fluxo vertical completo funcionando (cadastro → conta criada → criar planta → foto → log de cuidado) para provar que o schema é realmente usado.
+Concordo com o conceito de super admin de plataforma separado dos papéis de conta. Discordo do e-mail como mecanismo de autorização. E-mail em `auth.users` é mutável e comparar string de e-mail dentro de policy é frágil.
 
-## Seção 4: Direção mínima recomendada de schema (sem SQL ainda)
+Alternativa mais segura:
 
-Enums: `account_member_role` (`owner`, `admin`, `member`), `account_member_status` (`invited`, `active`, `suspended`), `care_log_type` (`watering`, `fertilizing`, `pruning`, `repotting`, `treatment`, `note`).
+- Tabela dedicada `platform_admins` (`user_id` PK → `auth.users`, `granted_at`, `granted_by`). Nada de coluna `is_admin` em `profiles` — isso é o vetor clássico de escalonamento de privilégio.
+- Autorização sempre via `is_platform_admin(auth.uid())`, nunca via e-mail.
+- O e-mail `br61982407140@gmail.com` entra **só como semente de bootstrap**: o trigger de signup verifica esse e-mail uma única vez e insere a linha em `platform_admins`. Depois disso o e-mail deixa de ter qualquer significado no sistema.
+- `platform_admins` sem policy de INSERT/UPDATE/DELETE para `authenticated` — só `service_role` escreve. Ninguém se auto-promove.
 
-Tabelas:
+### C. Item 7 — Duas correções em `ai_usage_log`
 
-- **accounts** — id, name, created_by, timestamps. Unidade de tenant.
-- **profiles** — id = `auth.users.id` (1:1), display_name, avatar_url, preferred_language, timestamps. Dado de usuário, sem role.
-- **account_members** — id, account_id, user_id, role, status, timestamps, único por (account_id, user_id). Fonte única de autorização.
-- **plants** — id, account_id, nickname, species_name, scientific_name, location, acquired_at, notes, timestamps.
-- **plant_photos** — id, account_id, plant_id, storage_path, is_primary, taken_at.
-- **plant_care_log** — id, account_id, plant_id, type, performed_at, performed_by, notes.
-- **products** — id, account_id, name, category, brand, quantity, unit, notes (armário compartilhado por conta).
-- **ai_usage_log** — id, account_id, user_id, feature, model, tokens_in, tokens_out, latency_ms, status, summarized_payload (JSONB mínimo), created_at.
+- **Escrita apenas server-side.** Se o cliente puder inserir em `ai_usage_log`, a telemetria de custo é falsificável. Sem policy de INSERT para `authenticated`; a escrita acontece na server function que chama o LogoriOn, com `service_role`. O cliente só lê (agregado da própria conta).
+- **Retenção definida agora.** Sem TTL, essa tabela vira a maior do banco em meses. Definir na Fase 0: `created_at` indexado e uma política de expurgo (ex.: 90 dias) executada por job. Pode ser implementada depois, mas a decisão fica travada agora.
+- Reforço da separação que você citou: `ai_usage_log` guarda métrica e custo. Debug profundo (prompt completo, resposta bruta) fica em log de servidor efêmero, nunca no banco.
 
-Funções auxiliares (`SECURITY DEFINER`, `search_path` fixo) para evitar recursão de RLS:
-- `is_account_member(account_id)` — usuário atual é membro ativo.
-- `has_account_role(account_id, role)` — checagem de papel.
+### D. Item 8 — Concordo, com uma exceção que precisa entrar agora
 
-Padrão de RLS: toda tabela de negócio libera SELECT/INSERT/UPDATE/DELETE apenas para `authenticated` quando `is_account_member(account_id)`; DELETE e escrita sensível restritos a `owner`/`admin`. `profiles` só do próprio usuário (+ leitura entre colegas de conta, se quisermos). Todo `CREATE TABLE` acompanhado dos `GRANT` correspondentes. Sem acesso `anon`.
+Concordo em não construir infraestrutura de tradução por entidade na Fase 0. Duas coisas, porém, precisam existir desde já porque doem caro depois:
 
-Automação no cadastro (trigger em `auth.users`): cria `profiles`, cria uma `accounts` pessoal e insere `account_members` com role `owner`. Bootstrap de admin: o e-mail `br61982407140@gmail.com` recebe role elevado por lógica do banco na criação, nunca por verificação no frontend.
+- `profiles.preferred_language` (`pt`, `en`, `es`) — barato agora, evita migração e permite e-mails/notificações no idioma certo.
+- Todo texto de sistema (categorias, tipos de cuidado, status) deve ser **enum/chave em inglês no banco**, traduzido só na camada de UI. Nunca guardar rótulo já traduzido em coluna.
 
-Storage: bucket privado `plant-photos`, caminho `account_id/plant_id/arquivo`, políticas checando membership pelo primeiro segmento do caminho.
+Conteúdo livre do usuário (apelido da planta, notas) fica no idioma que ele escreveu. Sem tradução, sem `_pt`/`_en`/`_es` em coluna.
 
-Escopo de UI da Fase 0 (para nada nascer órfão): auth, seleção/contexto de conta, lista e detalhe de planta com fotos, registro de cuidado, CRUD de produtos. Identificação por IA e diagnóstico ficam para a Fase 1 — `ai_usage_log` já nasce pronto mas será preenchido lá.
+### E. Item 10 — Adição ao caminho vertical
 
-## Seção 5: Perguntas em aberto
+O caminho listado está certo, mas falta uma peça: **seletor / contexto de conta ativa no frontend**. Sem ele, o dia em que um usuário pertencer a duas contas o app quebra ou vaza dados entre tenants. Não precisa de UI elaborada na Fase 0 — precisa do estado de conta ativa existindo e sendo usado em todas as queries.
 
-1. Confirma usar server functions do TanStack Start no lugar de Edge Functions do Supabase?
-2. LogoriOn: qual a URL base, o método de autenticação e o contrato de resposta? Já existe chave para guardarmos como secret?
-3. Cada usuário nasce com uma conta pessoal automática, ou a conta é criada explicitamente em um onboarding?
-4. Convite para conta é por e-mail (fluxo de invite) ou só adicionamos membros já cadastrados por enquanto?
-5. `products` é sempre por conta, ou existe também um catálogo global de produtos mantido por admin?
-6. Traduções de conteúdo: JSONB por linha ou tabela de tradução separada?
-7. O bootstrap de admin deve dar acesso a uma área administrativa global (super admin acima das contas) ou só role elevado dentro da conta dele?
-8. Fase 0 já entrega login social (Google/Apple) ou apenas e-mail/senha?
+## Seção 3: Riscos ainda em aberto antes do SQL
+
+1. **`GRANT` em toda tabela nova.** O Data API do Supabase não concede privilégios por padrão no schema `public`. RLS sem `GRANT` = erro de permissão em runtime. Toda migration precisa de `GRANT` explícito para `authenticated` e `service_role`.
+2. **Convite de membro ainda não modelado.** `account_members.status = 'invited'` implica um fluxo de convite (por e-mail, por link?). Se não entregarmos o fluxo na Fase 0, o status existe sem uso — pequena órfã aceitável, mas precisa ser decisão consciente.
+3. **LogoriOn sem contrato conhecido.** Não temos URL base, autenticação nem formato de resposta. `ai_usage_log` vai nascer com campos genéricos (`model`, `tokens_in`, `tokens_out`, `latency_ms`, `status`, `cost`) e pode precisar de ajuste quando o contrato real aparecer. Aceitável, mas é retrabalho previsto.
+4. **Deleção de conta / usuário.** `ON DELETE CASCADE` a partir de `auth.users` e de `accounts` precisa ser decidido junto com o schema, não depois. Deletar um `owner` sem regra deixa conta órfã sem dono.
+5. **Limpeza de storage.** Deletar uma planta não apaga o arquivo no bucket. Precisamos de uma regra (deleção no server function que remove a linha) ou o bucket acumula lixo pago.
+6. **Confirmação de e-mail no signup.** Se a confirmação estiver ligada, todo teste manual trava esperando e-mail. Recomendo desligar durante o desenvolvimento e reavaliar antes de publicar.
+7. **PWA e mobile-first ainda não configurados.** É um item de Fase 0 do produto que não aparece nas 10 decisões. Não bloqueia o SQL, mas precisa entrar no backlog imediato.
+
+## Seção 4: Arquitetura travada para a Fase 0
+
+**Execução:** TanStack Start server functions para lógica de aplicação; rotas `api/public/*` só para webhooks. Sem Edge Functions.
+
+**Enums:** `account_member_role` (`owner`, `admin`, `member`), `account_member_status` (`invited`, `active`, `suspended`), `care_log_type` (`watering`, `fertilizing`, `pruning`, `repotting`, `treatment`, `note`), `app_language` (`pt`, `en`, `es`).
+
+**Tabelas (9):**
+
+| Tabela | Escopo | Papel |
+| --- | --- | --- |
+| `accounts` | tenant | unidade de isolamento |
+| `profiles` | usuário (1:1 `auth.users`) | dados de perfil + `preferred_language`, sem role |
+| `account_members` | tenant × usuário | fonte única de autorização de conta |
+| `platform_admins` | plataforma | super admin, escrita só por `service_role` |
+| `plants` | `account_id` | entidade central |
+| `plant_photos` | `account_id` + `plant_id` | referência ao storage |
+| `plant_care_log` | `account_id` + `plant_id` | histórico de cuidados |
+| `products` | `account_id` | armário compartilhado da conta |
+| `ai_usage_log` | `account_id` | telemetria e custo, escrita server-side |
+
+**Regra invariável:** toda tabela de negócio tem `account_id NOT NULL`. Nenhuma tabela de negócio é dona de `user_id` como chave de isolamento.
+
+**Autorização:** três funções `SECURITY DEFINER` (`is_account_member`, `has_account_role`, `is_platform_admin`). Policies só chamam funções. Sem acesso `anon` em nenhuma tabela. `GRANT` explícito em toda migration.
+
+**Bootstrap:** trigger em `auth.users` → `profiles` + `accounts` pessoal + `account_members` (`owner`, `active`); se o e-mail for a semente de bootstrap, também insere em `platform_admins`.
+
+**Storage:** bucket privado `plant-photos`, caminho `account_id/plant_id/arquivo`, policies validando membership ativo pelo primeiro segmento.
+
+**i18n:** UI em pt/en/es; banco só em inglês, com enums e `profiles.preferred_language`. Sem tabela de tradução na Fase 0.
+
+**Entrega vertical obrigatória depois do SQL:** auth → contexto de conta ativa → lista/detalhe de planta → upload de foto → registro de cuidado → CRUD de produtos.
+
+## Seção 5: Estamos prontos para o SQL?
+
+**Sim, com uma dependência de bloqueio e três confirmações rápidas.**
+
+Bloqueio: **o Lovable Cloud precisa ser habilitado antes de qualquer migration.** Não existe banco provisionado ainda; esse é o primeiro passo do BUILD.
+
+Confirmações necessárias antes de eu escrever o SQL:
+
+1. Aceita substituir "admin por e-mail" pela tabela `platform_admins` + e-mail apenas como semente de bootstrap? (Seção 2.B)
+2. `ai_usage_log` fica sem INSERT pelo cliente, escrita só pela server function? (Seção 2.C)
+3. Fluxo de convite de membro entra na Fase 0 ou o status `invited` fica reservado para a Fase 1?
+
+Respondidas essas três, o próximo passo é: habilitar Lovable Cloud → uma migration única com enums, 9 tabelas, `GRANT`s, RLS, funções `SECURITY DEFINER`, trigger de signup e bucket de storage → em seguida o caminho vertical no frontend.
