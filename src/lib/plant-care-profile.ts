@@ -119,15 +119,27 @@ export function isLightExposure(value: string | null): value is LightExposure {
   );
 }
 
+function isOneOf<T extends string>(values: readonly T[]) {
+  return (value: string | null): value is T =>
+    value !== null && (values as readonly string[]).includes(value);
+}
+
+export const isDrainage = isOneOf(DRAINAGE_VALUES);
+export const isWindowOrientation = isOneOf(WINDOW_ORIENTATION_VALUES);
+export const isPerceivedLight = isOneOf(PERCEIVED_LIGHT_VALUES);
+export const isEnvironment = isOneOf(ENVIRONMENT_VALUES);
+
 /**
  * Creates the profile on first save and updates it afterwards.
+ * Accepts either the care fields or the physical context fields; only the
+ * columns present in the payload are written.
  * `account_id` always comes from the active account context and `plant_id`
  * from the loaded plant, never from user input or the URL.
  */
 export async function upsertPlantCareProfile(
   accountId: string,
   plantId: string,
-  input: PlantCareProfileInput,
+  input: PlantCareProfileInput | PlantContextInput,
 ) {
   const { data, error } = await supabase
     .from("plant_care_profile")
