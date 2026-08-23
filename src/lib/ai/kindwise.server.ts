@@ -130,9 +130,10 @@ export const kindwiseVisionProvider: AiVisionProvider = {
           "Api-Key": apiKey,
           "Content-Type": "application/json",
         },
+        // Only `images`: every extra key is parsed as a paid modifier, and
+        // `similar_images: false` is rejected outright by the API.
         body: JSON.stringify({
           images: input.images.map((image) => image.imageBase64),
-          similar_images: false,
         }),
       });
 
