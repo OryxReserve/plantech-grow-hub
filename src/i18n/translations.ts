@@ -221,6 +221,8 @@ const dictionaries = {
     "care.loadError": "Não foi possível carregar os cuidados.",
     "care.loading": "Carregando cuidados...",
     "care.noPhoto": "Esta planta ainda não tem foto.",
+    "care.fieldHint.noUsefulText":
+      "Esse campo parece não ter texto útil. Você pode revisar ou salvar assim mesmo.",
     "timeline.title": "Histórico de cuidados",
     "timeline.empty": "Ainda não há eventos registrados para esta planta.",
     "timeline.error": "Não foi possível carregar o histórico.",
@@ -449,6 +451,8 @@ const dictionaries = {
     "care.loadError": "Care details could not be loaded.",
     "care.loading": "Loading care...",
     "care.noPhoto": "This plant has no photo yet.",
+    "care.fieldHint.noUsefulText":
+      "This field doesn't seem to contain useful text. You can review it or save anyway.",
     "timeline.title": "Care history",
     "timeline.empty": "No events recorded for this plant yet.",
     "timeline.error": "The history could not be loaded.",
@@ -678,6 +682,8 @@ const dictionaries = {
     "care.loadError": "No se pudieron cargar los cuidados.",
     "care.loading": "Cargando cuidados...",
     "care.noPhoto": "Esta planta aún no tiene foto.",
+    "care.fieldHint.noUsefulText":
+      "Este campo parece no tener texto útil. Puedes revisarlo o guardarlo así.",
     "timeline.title": "Historial de cuidados",
     "timeline.empty": "Todavía no hay eventos registrados para esta planta.",
     "timeline.error": "No se pudo cargar el historial.",

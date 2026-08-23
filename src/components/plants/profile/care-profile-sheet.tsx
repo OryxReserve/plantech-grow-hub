@@ -82,6 +82,13 @@ function intervalOrNull(value: string): number | null | undefined {
   return parsed;
 }
 
+/** Soft advisory check: true when the field has content but no letters or digits. */
+function fieldLooksUseless(value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return false;
+  return !/[\p{L}\p{N}]/u.test(trimmed);
+}
+
 export function CareProfileSheet({
   accountId,
   plantId,
