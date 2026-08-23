@@ -240,6 +240,16 @@ const dictionaries = {
     "careType.note": "Anotação",
 
 
+    "initialCare.title": "Cuidados iniciais",
+    "initialCare.subtitle":
+      "Orientação geral da espécie, não uma rotina personalizada da sua planta.",
+    "initialCare.notes": "Sinais de atenção",
+    "initialCare.basedOn": "Baseado em",
+    "initialCare.noSpecies":
+      "Os cuidados iniciais aparecem quando a espécie da planta estiver definida.",
+    "initialCare.loading": "Carregando cuidados iniciais...",
+    "initialCare.error": "Não foi possível carregar os cuidados iniciais agora.",
+
     "role.owner": "Proprietário",
     "role.admin": "Administrador",
     "role.member": "Membro",
