@@ -1,103 +1,87 @@
-# Auditoria Plantech — estado atual vs. Master Plan
+# Fase 1.3A — Auditoria de schema e telemetria antes da Kindwise
 
-Observação de método: o documento "Master Plan v0.1" não está no repositório nem foi colado nesta conversa. A auditoria compara o código real com as fases acordadas no histórico do projeto (Fase 0 fundação, Fase 1 identificação por foto, Fase 2 perfil individual). Se o v0.1 tiver itens diferentes, me envie o texto e eu reconcilio.
+Sem Build, sem SQL escrito. Tudo abaixo foi verificado no banco real (colunas, índices, policies) e no código atual.
 
-## Fase atual
+## 1. Achados do schema atual
 
-Fase 2.2 concluída. O projeto está no fim da Fase 2 (perfil individual da planta), com Fase 0 e Fase 1 entregues e em uso.
+### `ai_usage_log` (13 colunas, verificadas)
 
-Verificado no código:
-- Migrations aplicadas: 2 arquivos em `supabase/migrations/` (fundação + `plant_care_profile`).
-- Rotas autenticadas: `plants.index`, `plants.new`, `plants.$plantId.index`, `plants.$plantId.edit`, `plants.identify`.
-- Camadas de dados: `plants.ts`, `plant-photos.ts`, `plant-care-profile.ts`, `plant-care-log.ts`, `plant-identification.ts` + `.functions.ts`.
-- Perfil montado por componentes: hero, care-summary, care-profile-sheet, care-timeline, plant-details-card, plant-details-sheet.
-- i18n com 724 linhas cobrindo pt/en/es.
+| Necessidade Kindwise | Coluna atual | Situação |
+| --- | --- | --- |
+| conta | `account_id` uuid NOT NULL | OK |
+| usuário | `user_id` uuid | OK |
+| tipo de tarefa | `feature` text NOT NULL (hoje `plant_identification`) | OK — serve para separar Onda 1 e Onda 2 |
+| provider | `provider` text NOT NULL (default `logorion`) | OK — aceita `kindwise` |
+| modelo/serviço | `model` text | OK — cabe `plant.id/v3` |
+| status | `status` text NOT NULL (`success`/`error`) | OK |
+| latência | `latency_ms` integer | OK |
+| custo | `cost_usd` numeric | Existe, mas ver lacuna de créditos abaixo |
+| tokens | `tokens_in` / `tokens_out` integer NOT NULL default 0 | Existem; Kindwise não usa tokens (ficam 0) |
+| qtd. de imagens | `summarized_payload.image_count` (jsonb) | Já gravado hoje |
+| hint fornecida | `summarized_payload.hint_provided` (jsonb, booleano; o texto nunca é salvo) | Já gravado hoje |
+| referência à planta | — | **Ausente** como coluna; hoje só existe `plant_context: "new" \| "existing"` no jsonb |
+| referência a scan | — | **Ausente** |
+| timestamps | `created_at` NOT NULL default now() | OK |
 
-## Aderência ao master plan
+Outros fatos verificados:
+- Índice `idx_ai_usage_log_account_time (account_id, created_at DESC)` — já é o índice certo para medição por conta e por período.
+- RLS ativa: única policy é `ai_usage_log_select` para `authenticated`, com `is_account_member(account_id) OR is_platform_admin(auth.uid())`. INSERT/UPDATE/DELETE negados ao cliente; a escrita ocorre só via service role em `src/lib/ai/usage-log.server.ts`.
+- Trigger `validate_ai_usage_payload` limita `summarized_payload` a 4096 bytes (o código já corta em 3500).
 
-Fase 0 — aderente:
-- Enums, 9 tabelas, RLS com helpers `SECURITY DEFINER`, GRANTs, trigger de signup e bucket privado `plant-photos` existem no banco.
-- Todo acesso a dados passa por `activeAccountId` (`src/context/active-account.tsx`), e as query keys são escopadas por conta em `plantKeys`, `plantCareLogKeys`.
+### Histórico de identificações / "Meus Scans"
 
-Fase 1 — aderente:
-- Identificação por foto com provider abstrato (`AiVisionProvider`), rota multi-etapas, staging de upload, múltiplas fotos + hint, tratamento de "não é planta".
-- `ai_usage_log` é escrito somente server-side via service role (`src/lib/ai/usage-log.server.ts`), nunca pelo cliente.
+Não existe. Nenhuma tabela de scans, tentativas ou resultados de identificação. O que existe hoje:
+- `ai_usage_log` — telemetria de uso, sem resultado nem foto vinculada.
+- `plants.species_name` / `scientific_name` — só o resultado **aceito**, sobrescrito a cada nova identificação, sem histórico.
+- `plant_photos` — fotos já vinculadas a `plant_id` + `account_id`.
+- Fotos de identificação ficam em `plant-photos/{account_id}/_staging/...` e são **apagadas** após a criação da planta (promovidas ou removidas). Ou seja: hoje uma identificação que não vira planta não deixa nenhum rastro recuperável.
 
-Lacunas em relação à fundação prometida:
-- `products`: tabela existe no banco, mas não há camada de dados nem tela. O shell (`app.tsx`) já mostra o card "Produtos" sem destino real.
-- `plant_care_log`: existe leitura (timeline), não existe escrita. Nenhum caminho no app grava rega/adubação, então a timeline nasce sempre vazia.
-- `platform_admins`: tabela e função `is_platform_admin` existem, sem nenhuma superfície de uso.
-- `account_members` com status `invited`: schema-ready, sem fluxo de convite (decidido assim na Fase 0).
-- PWA: não há `manifest.webmanifest` nem service worker em `public/`. O produto é mobile-first no layout, mas ainda não é instalável.
+### Pontos de vínculo com plantas/fotos
 
-## Riscos estruturais
+Existem e são naturais: `plant_photos.plant_id`, `plant_photos.id` e `account_id` em ambas as tabelas, com FKs compostas `(plant_id, account_id)` que impedem cruzamento entre contas. Qualquer registro futuro de scan pode se ancorar em `account_id` + `plant_id` opcional + `plant_photos.id` opcional pelo mesmo padrão.
 
-1. Timeline sem escrita é o risco de produto mais visível: o perfil promete histórico e nenhuma ação do app alimenta `plant_care_log`.
-2. Card "Produtos" no shell aponta para um recurso inexistente — expectativa quebrada na navegação.
-3. Sem PWA manifest, "app mobile-first, PWA" ainda não é verdade tecnicamente.
-4. Duplicidade de edição da planta: `/plants/$plantId/edit` e o `PlantDetailsSheet` fazem a mesma coisa. Baixo risco hoje (ambos usam `updatePlant`/`PlantInput`), mas é divergência esperando acontecer.
-5. Fotos e identificação não se cruzam: a foto usada na identificação não vira `plant_photos` primária automaticamente (a confirmar no build seguinte, não é bug de fundação).
+### RLS e monetização
 
-Nada disso é falha de isolamento multi-tenant. O escopo por `account_id` está consistente em todas as camadas verificadas.
+- Isolamento por conta está correto e consistente; um scan novo seguiria exatamente o mesmo padrão (`is_account_member(account_id)`).
+- Medição por conta/plano na Fase 6 é viável hoje: `account_id` + `feature` + `created_at` + índice já existente respondem "quantas identificações a conta X fez no mês". O que falta é a unidade de cobrança da Kindwise (créditos), não a estrutura de agregação.
 
-## Débitos técnicos críticos
+## 2. Lacunas reais para Kindwise
 
-Críticos (bloqueiam coerência do produto):
-- Escrita de `plant_care_log` (registrar rega/adubação/poda a partir do perfil).
+Onda 1 (identificação botânica):
+1. **Créditos**. Kindwise cobra por crédito, não por token nem por dólar. `cost_usd` é aproximação e `tokens_*` não se aplicam. Sem um campo de créditos, o consumo real não é auditável.
+2. **Vínculo com a planta**. Hoje só existe `plant_context` textual no jsonb. Para responder "quais chamadas de IA esta planta gerou" não há caminho consultável.
 
-Importantes (não bloqueiam, mas acumulam):
-- CRUD de `products` ou remoção temporária do card do shell.
-- Manifest PWA + ícones.
+Onda 2 (diagnóstico de saúde):
+3. Mesmas duas lacunas, mais o fato de que diagnóstico **precisa de histórico**: comparar estado da planta ao longo do tempo exige guardar resultado e foto, o que `ai_usage_log` não faz e não deve fazer (o payload é propositalmente mínimo e limitado a 4096 bytes).
+4. Não há vínculo com a foto analisada, e as fotos de staging são deletadas.
 
-Não críticos:
-- Unificar `/edit` com o Sheet de detalhes.
-- Painel de platform admin.
+"Meus Scans": não há nada reutilizável. `ai_usage_log` é telemetria, não histórico de produto — usá-lo como fonte de "Meus Scans" significaria inflar `summarized_payload` com resultados, colidindo com o trigger de 4096 bytes e com a decisão de manter o log mínimo.
 
-## Integração de APIs futuras sem refatoração grande
+## 3. Mudança mínima recomendada
 
-Sim, a estrutura suporta. Motivos concretos:
-- A identificação já está atrás de uma interface (`AiVisionProvider`) com registry por ambiente (`provider-registry.server.ts`), então trocar/adicionar LogoriOn ou outro provedor é implementar um módulo, não refatorar o fluxo.
-- Toda chamada de IA passa por `createServerFn` com middleware de auth, e o log de uso é centralizado em `logAiUsage`.
-- Uma futura API de cuidado (espécie → recomendações) encaixa no mesmo padrão: novo `*.server.ts` provider + server function + gravação em `plant_care_profile`, que já existe 1:1 com `plants`.
+Mínimo **antes** da integração Onda 1 — apenas `ai_usage_log`:
 
-Ressalva única: dados de cuidado vindos de API precisarão de colunas de origem/confiança em `plant_care_profile` (ex.: `source`, `confidence`, `generated_at`) para separar o que o usuário escreveu do que a IA sugeriu. É uma migration aditiva pequena, não refatoração.
+- Tabela afetada: `public.ai_usage_log`
+- Colunas faltantes: `credits_used` (numérico, nulo permitido, default 0) e `plant_id` (uuid, nulo permitido, FK para `plants`)
+- Nova tabela: **não**
+- Índice: **não** — `(account_id, created_at DESC)` já cobre a medição por conta; um índice por `plant_id` só se justifica quando existir uma tela que consulte por planta
+- Policy: **não** — a policy de SELECT por conta já cobre as colunas novas; escrita continua só por service role
 
-## O que está bom para continuar
+Adiável para **depois** do primeiro Build da Onda 1, junto com a Onda 2:
 
-- Fundação multi-tenant e RLS.
-- Contexto de conta e padrão de query keys.
-- Camada de provider de IA e logging de uso.
-- i18n pt/en/es consistente.
-- Composição por componentes do perfil da planta.
-- Padrão de feedback (toasts + validação inline) já estabelecido no `care-profile-sheet`.
+- Nova tabela de scans (`plant_scans` ou nome equivalente): `account_id`, `plant_id` opcional, `photo_id`/`storage_path`, tipo de scan (identificação / saúde), resultado estruturado, provider, `created_at`, com RLS por `is_account_member(account_id)`.
+- Justificativa para ela ser tabela nova e não reuso: guarda resultado e imagem persistente com ciclo de vida próprio, enquanto `ai_usage_log` é append-only mínimo, sem escrita pelo cliente e com limite rígido de payload. Misturar os dois quebra o limite do trigger e a separação telemetria × dado de produto.
+- Só faz sentido criá-la quando "Meus Scans" ou o diagnóstico entrarem no escopo — não agora.
 
-## O que está comprometido ou frágil
+Também adiável: retenção das fotos de staging (hoje deletadas). Vira requisito junto com a tabela de scans, não antes.
 
-- `plant_care_log` sem escrita.
-- `products` como promessa vazia na navegação.
-- Ausência de PWA real.
-- Dois caminhos de edição da mesma entidade.
+## 4. Decisão objetiva
 
-## Recomendação
+**Executar SQL Editor mínimo antes da integração.**
 
-**Continuar como está e implementar as APIs em paralelo** — com uma correção pequena antes: fechar a escrita de `plant_care_log`. A fundação não precisa ser ajustada nem refatorada; o que falta é superfície de produto, não estrutura.
+Escopo do SQL: duas colunas em `ai_usage_log` (`credits_used`, `plant_id`). Sem tabela nova, sem índice novo, sem policy nova.
 
-Ordem sugerida:
-1. Fase 2.3 — registrar cuidado (escrita em `plant_care_log` a partir do perfil, alimentando a timeline).
-2. Fase 2.4 — CRUD de `products` (armário da conta).
-3. Fase 3 — API de cuidado por espécie, com migration aditiva de origem/confiança em `plant_care_profile`.
-4. PWA (manifest, ícones, instalabilidade) quando o app estiver pronto para uso em campo.
+O que é estritamente SQL Editor: as duas colunas.
+O que **não** é SQL Editor: passar a gravar `credits_used` e `plant_id`, mapear a resposta da Kindwise e trocar o provider — tudo isso é Build, no `AiVisionProvider` e em `usage-log.server.ts`.
 
-## O que pode esperar
-
-- Fluxo de convite de membros.
-- Painel de platform admin.
-- Unificação de `/edit` com o Sheet.
-- Notificações e lembretes.
-- Diagnóstico por foto.
-
-## O que não deve esperar
-
-- Escrita de `plant_care_log` — sem ela o perfil mostra uma promessa vazia.
-- Decisão sobre o card "Produtos": implementar ou esconder até existir.
-- Definir o contrato de origem/confiança em `plant_care_profile` antes de a primeira API de cuidado gravar dados lá.
+Sem essas duas colunas dá para integrar mesmo assim, mas as primeiras chamadas Kindwise ficariam sem consumo de crédito auditável — retrabalho garantido na Fase 6.
