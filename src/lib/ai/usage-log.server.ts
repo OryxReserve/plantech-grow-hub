@@ -1,11 +1,18 @@
 import type { AiVisionErrorCategory } from "./vision-provider";
 
 export const AI_FEATURE_PLANT_IDENTIFICATION = "plant_identification";
+export const AI_FEATURE_SPECIES_CARE_GUIDE = "species_care_guide";
+
+export type AiFeature =
+  | typeof AI_FEATURE_PLANT_IDENTIFICATION
+  | typeof AI_FEATURE_SPECIES_CARE_GUIDE;
 
 /** Trigger `validate_ai_usage_payload` rejects payloads above 4096 bytes. */
 const MAX_PAYLOAD_BYTES = 3500;
 
 export type AiUsageLogEntry = {
+  /** Defaults to plant identification for existing callers. */
+  feature?: AiFeature;
   accountId: string;
   userId: string;
   provider: string;
@@ -30,6 +37,11 @@ export type AiUsageLogEntry = {
     image_count?: number;
     /** Whether a normalized hint was sent. The hint text is never stored. */
     hint_provided?: boolean;
+    /** Species care guide: only written on a real generation (cache miss). */
+    species_key?: string;
+    language?: string;
+    scientific_name?: string;
+    cache_miss?: boolean;
   };
 };
 
