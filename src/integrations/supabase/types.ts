@@ -208,45 +208,72 @@ export type Database = {
       plant_care_profile: {
         Row: {
           account_id: string
+          context_note: string | null
           created_at: string
+          drainage: string | null
+          environment: string | null
           fertilizer_type: string | null
           fertilizing_interval_days: number | null
           fertilizing_note: string | null
           id: string
+          last_watered_at: string | null
           light_exposure: string | null
           light_note: string | null
+          perceived_light: string | null
           plant_id: string
+          pot_size_cm: number | null
+          soil_type: string | null
           updated_at: string
           watering_amount_note: string | null
           watering_interval_days: number | null
+          window_distance_cm: number | null
+          window_orientation: string | null
         }
         Insert: {
           account_id: string
+          context_note?: string | null
           created_at?: string
+          drainage?: string | null
+          environment?: string | null
           fertilizer_type?: string | null
           fertilizing_interval_days?: number | null
           fertilizing_note?: string | null
           id?: string
+          last_watered_at?: string | null
           light_exposure?: string | null
           light_note?: string | null
+          perceived_light?: string | null
           plant_id: string
+          pot_size_cm?: number | null
+          soil_type?: string | null
           updated_at?: string
           watering_amount_note?: string | null
           watering_interval_days?: number | null
+          window_distance_cm?: number | null
+          window_orientation?: string | null
         }
         Update: {
           account_id?: string
+          context_note?: string | null
           created_at?: string
+          drainage?: string | null
+          environment?: string | null
           fertilizer_type?: string | null
           fertilizing_interval_days?: number | null
           fertilizing_note?: string | null
           id?: string
+          last_watered_at?: string | null
           light_exposure?: string | null
           light_note?: string | null
+          perceived_light?: string | null
           plant_id?: string
+          pot_size_cm?: number | null
+          soil_type?: string | null
           updated_at?: string
           watering_amount_note?: string | null
           watering_interval_days?: number | null
+          window_distance_cm?: number | null
+          window_orientation?: string | null
         }
         Relationships: [
           {
