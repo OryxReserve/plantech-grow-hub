@@ -49,6 +49,13 @@ export function PlantFormCard({
 
   return (
     <FormCard animate={animate}>
+      <form
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSubmit();
+        }}
+      >
       <FormCardHeader
         title={title}
         subtitle={subtitle}
@@ -72,12 +79,11 @@ export function PlantFormCard({
         {children}
       </FormCardRow>
 
-      <FormCardFooter animate={animate}>
+        <FormCardFooter animate={animate}>
         <Button
           type="submit"
           className="h-12 flex-1 text-base"
           disabled={isSubmitting}
-          onClick={onSubmit}
         >
           {isSubmitting ? t("plants.saving") : submitLabel}
         </Button>
@@ -92,7 +98,8 @@ export function PlantFormCard({
             {t("plants.cancel")}
           </Button>
         ) : null}
-      </FormCardFooter>
+        </FormCardFooter>
+      </form>
     </FormCard>
   );
 }
