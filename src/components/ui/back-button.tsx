@@ -1,5 +1,6 @@
 import { Link, type LinkProps } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -20,8 +21,12 @@ export interface BackButtonProps {
 
 /**
  * Secondary-weight back action. The label is visible by default; on hover,
- * focus or touch (`:active`) an ArrowLeft region expands to fill the control
- * while the label fades out. Pure CSS transitions — no animation library.
+ * focus or press (mouse and touch alike) an ArrowLeft region expands to fill
+ * the control while the label fades out. Pure CSS transitions — no animation
+ * library.
+ *
+ * Touch feedback uses an explicit `data-pressed` state instead of `:active`,
+ * which mobile browsers apply inconsistently.
  *
  * The 44px minimum touch target is baked in, so call sites must not add their
  * own height overrides.
@@ -36,6 +41,18 @@ export function BackButton({
   variant = "ghost",
   className,
 }: BackButtonProps) {
+  const [pressed, setPressed] = useState(false);
+
+  const pressHandlers = {
+    onPointerDown: () => setPressed(true),
+    onPointerUp: () => setPressed(false),
+    onPointerCancel: () => setPressed(false),
+    onPointerLeave: () => setPressed(false),
+    onTouchStart: () => setPressed(true),
+    onTouchEnd: () => setPressed(false),
+    onBlur: () => setPressed(false),
+  };
+
   const content = (
     <>
       {/* Expanding icon region: hidden entirely when motion is reduced. */}
@@ -48,6 +65,7 @@ export function BackButton({
           "group-hover:w-full group-hover:opacity-100",
           "group-focus-visible:w-full group-focus-visible:opacity-100",
           "group-active:w-full group-active:opacity-100",
+          "group-data-[pressed=true]:w-full group-data-[pressed=true]:opacity-100",
           "motion-reduce:hidden",
         )}
       >
@@ -61,6 +79,7 @@ export function BackButton({
         className={cn(
           "relative z-10 transition-opacity duration-150 ease-out",
           "group-hover:opacity-0 group-focus-visible:opacity-0 group-active:opacity-0",
+          "group-data-[pressed=true]:opacity-0",
           "motion-reduce:opacity-100 motion-reduce:transition-none",
         )}
       >
@@ -70,7 +89,7 @@ export function BackButton({
   );
 
   const classes = cn(
-    "group relative min-h-11 min-w-11 overflow-hidden px-4",
+    "group relative min-h-11 min-w-11 touch-manipulation overflow-hidden px-4",
     className,
   );
 
@@ -82,6 +101,8 @@ export function BackButton({
           {...(params === undefined ? {} : { params })}
           {...(search === undefined ? {} : { search })}
           aria-label={ariaLabel ?? label}
+          data-pressed={pressed}
+          {...pressHandlers}
         >
           {content}
         </Link>
@@ -95,6 +116,8 @@ export function BackButton({
       variant={variant}
       className={classes}
       aria-label={ariaLabel ?? label}
+      data-pressed={pressed}
+      {...pressHandlers}
       {...(onClick ? { onClick } : {})}
     >
       {content}
