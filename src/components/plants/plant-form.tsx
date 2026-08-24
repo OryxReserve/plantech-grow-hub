@@ -1,6 +1,6 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useRef, useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { PlantFormCard } from "@/components/plants/plant-form-card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,8 +41,7 @@ export function PlantForm({
   const [error, setError] = useState<string | null>(null);
   const nicknameRef = useRef<HTMLInputElement>(null);
 
-  function handleSubmit(event: FormEvent) {
-    event.preventDefault();
+  function handleSubmit() {
     if (nickname.trim().length === 0) {
       setError(t("field.nicknameRequired"));
       nicknameRef.current?.focus();
@@ -61,7 +60,14 @@ export function PlantForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+    <PlantFormCard
+      title={t("details.title")}
+      animate={false}
+      submitLabel={submitLabel}
+      isSubmitting={isSubmitting}
+      onSubmit={handleSubmit}
+      onCancel={onCancel}
+    >
       <div className="space-y-1.5">
         <Label htmlFor="nickname">{t("field.nickname")}</Label>
         <Input
@@ -138,15 +144,6 @@ export function PlantForm({
       </div>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
-
-      <div className="flex gap-2 pt-2">
-        <Button type="submit" className="flex-1" disabled={isSubmitting}>
-          {isSubmitting ? t("plants.saving") : submitLabel}
-        </Button>
-        <Button type="button" variant="ghost" onClick={onCancel} disabled={isSubmitting}>
-          {t("plants.cancel")}
-        </Button>
-      </div>
-    </form>
+    </PlantFormCard>
   );
 }

@@ -11,6 +11,14 @@ const dictionaries = {
   pt: {
     "app.name": "Plantech",
     "app.tagline": "Cuide das suas plantas com método.",
+    "expandable.close": "Fechar detalhe",
+    "expandable.openDetail": "Abrir detalhe",
+    "upload.addPhoto": "Adicionar foto",
+    "upload.emptyHint": "Nenhuma foto adicionada ainda.",
+    "upload.previewAlt": "Pré-visualização da foto",
+    "upload.removePhoto": "Remover foto",
+    "upload.invalidType": "Formato de imagem não suportado.",
+    "upload.invalidSize": "Imagem muito grande.",
 
     "meta.root.title": "Plantech",
     "meta.root.description":
@@ -112,6 +120,7 @@ const dictionaries = {
     "plants.create": "Cadastrar planta",
     "plants.editTitle": "Editar planta",
     "plants.noValue": "—",
+    "plants.openProfile": "Abrir perfil da planta",
     "plants.addedOn": "Cadastrada em",
     "plants.noAccountData": "Selecione uma conta ativa para ver as plantas.",
     "field.nickname": "Apelido",
@@ -334,6 +343,14 @@ const dictionaries = {
   en: {
     "app.name": "Plantech",
     "app.tagline": "Care for your plants with method.",
+    "expandable.close": "Close detail",
+    "expandable.openDetail": "Open detail",
+    "upload.addPhoto": "Add photo",
+    "upload.emptyHint": "No photo added yet.",
+    "upload.previewAlt": "Photo preview",
+    "upload.removePhoto": "Remove photo",
+    "upload.invalidType": "Unsupported image format.",
+    "upload.invalidSize": "Image is too large.",
 
     "meta.root.title": "Plantech",
     "meta.root.description":
@@ -434,6 +451,7 @@ const dictionaries = {
     "plants.create": "Create plant",
     "plants.editTitle": "Edit plant",
     "plants.noValue": "—",
+    "plants.openProfile": "Open plant profile",
     "plants.addedOn": "Added on",
     "plants.noAccountData": "Select an active account to see plants.",
     "field.nickname": "Nickname",
@@ -654,6 +672,14 @@ const dictionaries = {
   es: {
     "app.name": "Plantech",
     "app.tagline": "Cuida tus plantas con método.",
+    "expandable.close": "Cerrar detalle",
+    "expandable.openDetail": "Abrir detalle",
+    "upload.addPhoto": "Añadir foto",
+    "upload.emptyHint": "Aún no hay fotos añadidas.",
+    "upload.previewAlt": "Vista previa de la foto",
+    "upload.removePhoto": "Quitar foto",
+    "upload.invalidType": "Formato de imagen no compatible.",
+    "upload.invalidSize": "La imagen es demasiado grande.",
 
     "meta.root.title": "Plantech",
     "meta.root.description":
@@ -755,6 +781,7 @@ const dictionaries = {
     "plants.create": "Registrar planta",
     "plants.editTitle": "Editar planta",
     "plants.noValue": "—",
+    "plants.openProfile": "Abrir perfil de la planta",
     "plants.addedOn": "Registrada el",
     "plants.noAccountData": "Selecciona una cuenta activa para ver las plantas.",
     "field.nickname": "Apodo",

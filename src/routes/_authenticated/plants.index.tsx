@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, Leaf, Plus, ScanLine } from "lucide-react";
 
+import { ExpandablePlantDetail } from "@/components/plants/expandable-plant-detail";
 import { PlantScreen } from "@/components/plants/screen";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -88,22 +89,63 @@ function PlantsListPage() {
         <ul className="space-y-3">
           {query.data!.map((plant) => (
             <li key={plant.id}>
-              <Link
-                to="/plants/$plantId"
-                params={{ plantId: plant.id }}
-                className="flex items-center gap-3 rounded-xl border border-border p-4 transition-colors hover:bg-accent"
-              >
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                  <Leaf className="size-5 text-primary" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium">{plant.nickname}</span>
-                  <span className="block truncate text-sm text-muted-foreground">
-                    {plant.species_name ?? plant.scientific_name ?? plant.location ?? t("plants.noValue")}
+              <ExpandablePlantDetail
+                id={plant.id}
+                title={plant.nickname}
+                subtitle={
+                  plant.species_name ??
+                  plant.scientific_name ??
+                  plant.location ??
+                  t("plants.noValue")
+                }
+                trigger={
+                  <span className="flex items-center gap-3">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                      <Leaf className="size-5 text-primary" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium">
+                        {plant.nickname}
+                      </span>
+                      <span className="block truncate text-sm text-muted-foreground">
+                        {plant.species_name ??
+                          plant.scientific_name ??
+                          plant.location ??
+                          t("plants.noValue")}
+                      </span>
+                    </span>
+                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
                   </span>
-                </span>
-                <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-              </Link>
+                }
+                footer={
+                  <Button asChild className="h-12 w-full text-base">
+                    <Link to="/plants/$plantId" params={{ plantId: plant.id }}>
+                      {t("plants.openProfile")}
+                    </Link>
+                  </Button>
+                }
+              >
+                <dl className="space-y-3 text-sm">
+                  <div>
+                    <dt className="text-muted-foreground">
+                      {t("field.speciesName")}
+                    </dt>
+                    <dd>{plant.species_name ?? t("plants.noValue")}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">
+                      {t("field.scientificName")}
+                    </dt>
+                    <dd className="italic">
+                      {plant.scientific_name ?? t("plants.noValue")}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">{t("field.location")}</dt>
+                    <dd>{plant.location ?? t("plants.noValue")}</dd>
+                  </div>
+                </dl>
+              </ExpandablePlantDetail>
             </li>
           ))}
         </ul>

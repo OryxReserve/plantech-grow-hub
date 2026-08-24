@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { FormCard } from "@/components/ui/form-card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -188,7 +189,8 @@ export function CareProfileSheet({
           <SheetDescription>{t("care.sheetBody")}</SheetDescription>
         </SheetHeader>
 
-        <form onSubmit={onSubmit} className="space-y-5 px-4 pb-6">
+        <form onSubmit={onSubmit} className="px-4 pb-6">
+          <FormCard animate={false} className="space-y-5">
           <div className="space-y-2">
             <Label htmlFor="watering_interval_days">
               {t("care.field.wateringIntervalDays")} ({t("care.daysUnit")})
@@ -311,6 +313,7 @@ export function CareProfileSheet({
               {mutation.isPending ? t("care.saving") : t("care.save")}
             </Button>
           </div>
+          </FormCard>
         </form>
       </SheetContent>
     </Sheet>
