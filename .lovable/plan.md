@@ -1,67 +1,95 @@
-# Plano — SegmentedTabs (controle segmentado animado)
+# Plano — Badge/Chip (StatusBadge + CompletionBadge)
 
-Substituir a barra de abas Água/Luz/Fertilizante por um controle segmentado polido, reutilizável depois em Hoje/Próximos (Fase 3). Sem mudança de conteúdo, dados ou validação.
+Criar uma família pequena e reutilizável de badges de status para o Plantech, incluindo um variant específico para checklist de completude. Sem schema, sem dados, sem animação, sem novas dependências.
 
 ## 1. Respostas às perguntas
 
-1. **shadcn Tabs já está instalado** — `src/components/ui/tabs.tsx` existe com `Tabs`/`TabsList`/`TabsTrigger`/`TabsContent` sobre `@radix-ui/react-tabs`. Nenhum comando de CLI é necessário; nenhuma dependência nova.
-2. **Único consumidor atual**: `src/components/plants/profile/care-summary.tsx`.
-3. **Indicador deslizante**: reutiliza o mesmo padrão do `ExpandableCard` (`motion/react`, `layoutId`, `useReducedMotion`). Sem conflito: o `layoutId` será namespaced (`segmented-tabs-${groupId}`), diferente de `expandable-card-*`, e os dois nunca compartilham árvore de layout animada.
-4. **Seguro para BUILD pequeno**: 1 arquivo novo, 1 arquivo modificado, 0 dependências, 0 schema, 0 IA.
+1. **Nova componente ou extensão?** Recomendo **duas componentes**: `StatusBadge` como base genérica (mapeia um status para cor + ícone + rótulo traduzível) e `CompletionBadge` como wrapper fino que restringe o status a `"completed" | "pending"` e fornece rótulos de checklist. Isso mantém a base flexível para futuros estados (ex.: "ativo", "inativo", "erro") sem poluir a API do checklist com variantes genéricas.
+2. **Arquivos**: criar `src/components/ui/status-badge.tsx` e `src/components/ui/completion-badge.tsx`; modificar `src/i18n/translations.ts` para adicionar as chaves de rótulo. Nenhuma outra alteração de rota ou componente existente.
+3. **Onde vive o checklist de completude do perfil?** Ainda **não existe** no código. Os campos citados (tipo de planta, tamanho do vaso, distância da janela, luz direta) correspondem a colunas já existentes em `plants` e `plant_care_profile`, mas nenhum componente os lista como checklist. **Escopo deste plano: apenas o badge**. A UI do checklist é um plano futuro separado (polimento da Fase 1).
+4. **Seguro para BUILD pequeno?** Sim. 2 arquivos novos, 1 arquivo de tradução editado, 0 dependências, 0 schema, 0 IA. Pode ser construído no mesmo turno do restante do trabalho Badge/StatusBadge.
 
-## 2. Arquivos
+## 2. Estado atual relevante
+
+- `src/components/ui/badge.tsx` existe (primitive shadcn com `default`/`secondary`/`destructive`/`outline`). Será reutilizada como elemento base, não alterada.
+- `src/components/plants/profile/health-badge.tsx` existe, mas usa cores hex/emerald/amber/red hardcoded. **Fora de escopo deste plano**; pode ser alinhado em plano futuro de consolidação de badges.
+- Não existe `StatusBadge`, `CompletionBadge` nem checklist de completude.
+- O plano atual em `.lovable/plan.md` era o `SegmentedTabs`, já implementado; este documento o substitui.
+
+## 3. Arquivos
 
 Criar:
-- `src/components/ui/segmented-tabs.tsx` — wrapper genérico em cima do shadcn Tabs.
+- `src/components/ui/status-badge.tsx` — badge de status genérico, com mapa de status -> tokens de cor + ícone + chave de tradução.
+- `src/components/ui/completion-badge.tsx` — wrapper de checklist sobre `StatusBadge`, status `"completed" | "pending"`.
 
 Modificar:
-- `src/components/plants/profile/care-summary.tsx` — troca `TabsList`/`TabsTrigger` pelo novo componente; `TabsContent` e todo o corpo das abas ficam idênticos.
+- `src/i18n/translations.ts` — adicionar chaves `badge.status.*` e `badge.completion.*` em pt, en e es.
 
 Não modificar:
-- `src/components/ui/tabs.tsx` (primitivo acessível intacto).
-- `src/i18n/translations.ts` — as chaves `care.tab.water|light|fertilizer` já existem nos três idiomas e serão reutilizadas.
+- `src/components/ui/badge.tsx` (primitive intacto).
+- Qualquer rota ou card existente (o checklist ainda não será construído).
 
-## 3. API do componente
+## 4. API
 
 ```ts
-type SegmentedTabItem = {
-  value: string;
-  label: string;
-  icon?: React.ComponentType<{ className?: string }>; // opcional, prefixo
-};
+// src/components/ui/status-badge.tsx
+export type StatusBadgeStatus =
+  | "completed"
+  | "pending"
+  | "active"
+  | "inactive"
+  | "error"
+  | "warning";
 
-type SegmentedTabsProps = {
-  items: SegmentedTabItem[];
-  value?: string;                    // controlado
-  defaultValue?: string;             // não controlado
-  onValueChange?: (value: string) => void;
-  groupId: string;                   // base do layoutId
+export interface StatusBadgeProps {
+  status: StatusBadgeStatus;
   className?: string;
-  children: React.ReactNode;         // TabsContent
-  "aria-label"?: string;
-};
+}
+
+export function StatusBadge({ status, className }: StatusBadgeProps): JSX.Element;
 ```
 
-Uso em `care-summary.tsx`:
+```ts
+// src/components/ui/completion-badge.tsx
+export type CompletionStatus = "completed" | "pending";
+
+export interface CompletionBadgeProps {
+  status: CompletionStatus;
+  className?: string;
+}
+
+export function CompletionBadge({ status, className }: CompletionBadgeProps): JSX.Element;
+```
+
+Uso futuro (não implementado neste plano):
 
 ```tsx
-<SegmentedTabs groupId="care" defaultValue="water" items={[...]}>
-  <TabsContent value="water">…igual ao atual…</TabsContent>
-  …
-</SegmentedTabs>
+<CompletionBadge status={plant.species_name ? "completed" : "pending"} />
 ```
 
-## 4. Comportamento e estilo
+## 5. Comportamento e estilo
 
-- Container: `bg-muted` arredondado (`rounded-full`), padding 1, borda `border-border` sutil.
-- Indicador: `motion.span` absoluto atrás do gatilho ativo, `bg-primary` (rótulo ativo em `text-primary-foreground`), `layoutId={`segmented-tabs-${groupId}`}`, spring curto (~250ms, `stiffness 380 / damping 32`).
-- Inativo: `text-muted-foreground`, hover para `text-foreground`. Nenhum `zinc-*`/`gray-*`, nenhum hex.
-- Ícone opcional `size-4` antes do texto; nunca só ícone.
-- Toque: altura mínima 44px no mobile (`min-h-11`), 40px em `md`.
-- Responsivo: `flex` com `flex-1` quando cabem até 4 itens; acima disso ou em telas estreitas, `overflow-x-auto` com `scrollbar-none` e `snap-x` — sem quebra de layout em 375px.
-- `useReducedMotion`: sem indicador animado; o estado ativo usa fundo estático (`data-[state=active]`), troca instantânea.
-- Foco: mantém o anel de foco do Radix; navegação por setas e roles ARIA vêm do primitivo, não são reimplementados.
+- Base: reutilizar `Badge` do shadcn (`rounded-full px-2.5 py-0.5 text-xs font-medium inline-flex items-center gap-1.5`).
+- Cores 100% por tokens do design system; nenhuma classe hardcoded tipo `green-100`/`blue-100`.
+- Mapa de tokens:
+  - `completed`: `bg-primary text-primary-foreground` (o primary do Plantech já é verde; equivale ao "success" do reference).
+  - `pending`: `bg-muted text-muted-foreground`.
+  - Outros status genéricos (reservados para uso futuro):
+    - `active`: `bg-primary text-primary-foreground`.
+    - `inactive`: `bg-secondary text-secondary-foreground`.
+    - `error`: `bg-destructive text-destructive-foreground`.
+    - `warning`: `bg-accent text-accent-foreground`.
+- Ícones (lucide-react):
+  - `completed`: `CheckCircle2`.
+  - `pending`: `Circle`.
+  - Outros status genéricos recebem ícones apropriados (`AlertCircle`, `XCircle`, etc.).
+- Sem animação de entrada, sem contador, sem gradiente, sem theme-switcher.
+- Acessibilidade: o texto traduzido é o label visível; ícone tem `aria-hidden`. Sem necessidade de `aria-live` porque o badge é estático.
+- Traduções:
+  - pt: `"Concluído"` / `"Pendente"`
+  - en: `"Completed"` / `"To Do"`
+  - es: `"Completado"` / `"Pendiente"`
 
-## 5. Riscos
+## 6. Riscos
 
-Baixo. O único ponto de atenção é o indicador precisar ficar sob o texto (`z-0` no indicador, `z-10` no conteúdo do gatilho) para não cobrir o rótulo.
+Baixo. O único ponto de atenção é que `HealthBadge` já existe com cores hardcoded; este plano não o altera, mas a consolidação futura de badges deve considerar migrá-lo para a mesma base de tokens.
