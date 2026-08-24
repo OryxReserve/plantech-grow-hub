@@ -1,52 +1,56 @@
-# Diagnóstico: FCM aceitou (delivered:1) mas nada apareceu na tela
+# Fase 3.3 — Republicar, validar o cron e fechar o QA
 
-Nenhum código foi alterado. Abaixo o que foi verificado, na ordem pedida.
+## Situação atual (verificada agora)
 
-## 1. Payload exato enviado ao HTTP v1
+- O job `daily-care-check` existe, está ativo, roda `5 * * * *` e envia o header `x-cron-secret`.
+- O valor no comando do job **é igual** ao valor atual em `cron_secrets.care_reminders` — não precisa recriar o job por causa do segredo.
+- As duas últimas chamadas HTTP do cron responderam **401** (`{"error":"Unauthorized"}`) — a última às 14:05 UTC. Confirma o diagnóstico: a URL de produção ainda roda a versão antiga da rota, que só aceitava `LOVABLE_CRON_SECRET`.
+- `reminder_run_log` tem 6 linhas, a última em 12:53 UTC (execuções manuais) — nenhuma vinda do cron, coerente com o 401.
 
-`POST https://fcm.googleapis.com/v1/projects/plantech-app/messages:send`
+Detalhe importante: o segredo está **literal** dentro do comando do job (não lido de `cron_secrets` em tempo de execução). Funciona hoje, mas se o segredo for rotacionado o job quebra silenciosamente.
 
-```json
-{
-  "message": {
-    "token": "<token do dispositivo>",
-    "notification": { "title": "1 planta precisa de atenção hoje", "body": "Manjericão" },
-    "data": { "...": "..." },
-    "webpush": {
-      "notification": { "icon": "/icons/icon-192.png", "badge": "/icons/icon-192.png" },
-      "fcmOptions": { "link": "/tasks" }
-    }
-  }
-}
+## Passo 1 — Publicar
+
+Publicar o projeto para que a produção passe a rodar a rota que aceita `x-cron-secret` validado contra `cron_secrets`.
+
+## Passo 2 — Confirmar a versão publicada
+
+Chamada `POST` à rota de produção com o header correto e `{"accountId": "<conta de QA>", "dryRunDedupe": true}`, esperando `200` com o resumo em JSON (sem 401).
+
+## Passo 3 — Ajustar o job para ler o segredo em tempo de execução
+
+Recriar o job com o header montado a partir da tabela, para eliminar o segredo literal:
+
+```text
+headers := jsonb_build_object(
+  'Content-Type','application/json',
+  'x-cron-secret',(select secret from cron_secrets where name='care_reminders')
+)
 ```
 
-Conclusão: **não é data-only**. Existe `message.notification` com title/body, então o Chrome deveria exibir automaticamente em background, mesmo sem handler customizado.
+Mesmo nome (`daily-care-check`) e mesmo schedule (`5 * * * *`).
 
-## 2. Service worker
+## Passo 4 — Aguardar a execução real
 
-`public/firebase-messaging-sw.js` está publicado na raiz e **tem** `messaging.onBackgroundMessage(...)` chamando `self.registration.showNotification(title, options)` (tag `plantech-care-reminder`, icon/badge, `notificationclick` implementado). Ou seja, o item 2 também está correto.
+Esperar o minuto 5 da próxima hora e reportar, a partir de `net._http_response`, `cron.job_run_details` e `reminder_run_log`:
+- status HTTP da chamada (esperado 200, não 401);
+- quantas contas `list_accounts_due_for_reminder()` retornou naquele ciclo;
+- push enviados / falhados na linha correspondente do log.
 
-Ressalva importante: o SW é registrado como `/firebase-messaging-sw.js?apiKey=...&projectId=...`. Se a query string não chegar (ou `apiKey` vier vazio do servidor), o bloco `firebase.initializeApp` inteiro é pulado e o `onBackgroundMessage` nunca é anexado. O push nativo do Chrome ainda exibiria a notificação (porque há `message.notification`), mas isso é um ponto a confirmar no DevTools.
+Sem esse número concreto a fase não é considerada fechada.
 
-## 3. Causa mais provável (código está correto)
+## Passo 5 — Checklist de QA
 
-Como o payload e o SW estão certos, restam três hipóteses, em ordem de probabilidade:
+1. **Idempotência**: dois disparos manuais no mesmo dia local para a mesma conta (sem `dryRunDedupe`); o segundo não deve enviar nem criar nova linha em `care_reminder_sent`. Evidência: contagem de linhas antes/depois + `delivered` do segundo disparo.
+2. **Fuso horário**: criar conta de QA em `America/Sao_Paulo` com `reminder_hour` que bate com o horário local dela e outra em `Europe/Madrid` fora da hora; verificar quem `list_accounts_due_for_reminder()` retorna em cada hora.
+3. **Conta sem tarefas**: conta com plantas sem intervalo configurado — confirmar zero envio e zero linha em `care_reminder_sent`.
+4. **Token morto**: inserir um `fcm_token` inválido em `push_subscriptions` para a conta de QA, disparar e confirmar que a linha some (`staleTokensRemoved` > 0) e que o token válido continua.
+5. **Múltiplos dispositivos**: com 2 tokens na conta (um real + um inválido, ou dois reais), confirmar `tokens: 2` e envio para todos.
+6. **Foreground vs background**: dois disparos reais no seu aparelho — app aberto (`onMessage`) e app minimizado (`onBackgroundMessage`) — confirmando exibição nos dois casos e sem duplicar (mesma `tag`).
+7. **reminder_run_log**: confirmar que cada execução grava linha mesmo com zero contas due (verificar após um ciclo de cron em hora sem contas elegíveis).
 
-1. **App em primeiro plano no momento do envio.** Com a aba do Plantech aberta e visível no Chrome Android, o FCM entrega via `onMessage` (foreground), **não** via `onBackgroundMessage` — e o projeto não tem nenhum handler `onMessage`. Resultado exato do que você viu: entrega com sucesso, nada na tela. Esse é o candidato número um.
-2. **Notificações do Chrome desativadas no nível do sistema Android**, ou "Não perturbar"/economia de bateria ativos (Configurações → Apps → Chrome → Notificações; e canal "Sites").
-3. **Tab/collapse ou SW inativo**: mensagem chegou ao dispositivo mas foi suprimida.
+Itens 1–5 e 7 eu executo e reporto com números; o item 6 depende da sua confirmação visual no aparelho.
 
-## 4. Como separar as hipóteses (verificação, sem alterar lógica)
+## Limpeza ao final
 
-- Você confere no aparelho: Configurações do Android → Apps → Chrome → Notificações ligadas (e o canal "Sites"), e "Não perturbar" desligado.
-- Novo disparo com o **Chrome totalmente em background** (tela inicial do Android, aba do Plantech fechada ou minimizada) — se a notificação aparecer, confirma a hipótese 1.
-- `chrome://inspect/#devices` via USB: inspecionar o service worker `firebase-messaging-sw.js`, confirmar estado `activated` e observar o evento `push` chegando no console do worker.
-
-## 5. Correção proposta (só após sua confirmação)
-
-Se a hipótese 1 se confirmar, a correção é pequena e não toca no motor de tarefas:
-
-- Adicionar um handler `onMessage` no cliente (registrado junto com o push) que chama `registration.showNotification(...)` com o mesmo formato do SW, evitando notificação duplicada via `tag`.
-- Opcionalmente, adicionar `webpush.headers.Urgency: high` e `TTL` explícito no envio, para reduzir atraso em modo economia de bateria.
-
-Nada de cron ainda; `daily-care-check` permanece intocado.
+Remover contas/plantas/tokens criados só para o QA, mantendo o Manjericão com rega de 1 dia como combinado.
