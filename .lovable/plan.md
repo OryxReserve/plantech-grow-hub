@@ -1,87 +1,64 @@
-# Fase 4.1 — Produtos e Insumos (cadastro manual)
+# Fase 4.2 — Ler rótulo de produto por foto
 
-Seção "Produtos" para registrar o estoque de adubos, fertilizantes e insumos da conta. Sem IA, sem foto de rótulo, sem recomendação, sem pagamentos.
+Foto do rótulo → extração estruturada por IA → rascunho editável no formulário → salvar somente após confirmação do usuário. O cadastro manual permanece intocado como fallback.
 
-## 1. Schema atual de `products` (verificado)
+## 1. Infraestrutura atual (verificada)
 
-Colunas hoje:
+- **Upload + IA já existem na Fase 1**: `src/lib/plant-identification.ts` faz upload direto do browser para o bucket privado `plant-photos` em `{account_id}/_staging/{uuid}.ext` (validação de tipo/tamanho, máx. 8 MB, jpeg/png/webp), e `src/lib/plant-identification.functions.ts` é um `createServerFn` com `requireSupabaseAuth` que: resolve as contas ativas do usuário, rejeita `accountId` fora delas, exige que todo path comece com `{accountId}/`, baixa os bytes via `supabaseAdmin` e chama o provider.
+- **Não há Edge Functions para IA**: tudo é server function TanStack. A Fase 4.2 segue o mesmo padrão (nada de Edge Function nova).
+- **Providers**: `src/lib/ai/provider-registry.server.ts` seleciona por env `AI_VISION_PROVIDER` entre `kindwise` (default), `lovable` e `logorion`. O adapter `src/lib/ai/logorion.server.ts` é hoje um stub que falha com `not_configured` — **o projeto não usa LogoriOn de fato**. Menor adaptação compatível: leitura de rótulo é OCR/extração genérica, não botânica, então usa diretamente o **Lovable AI Gateway** (`src/lib/ai/ai-gateway.server.ts`, secret `LOVABLE_API_KEY` já existente) com **`google/gemini-3.7-flash`** (modelo barato, multimodal). Nenhum secret novo. Se LogoriOn for contratado depois, entra como mais um adapter atrás da mesma interface, sem mexer na UI.
+- **`ai_usage_log`**: já tem `account_id`, `user_id`, `feature`, `provider`, `model`, `status`, `tokens_in/out`, `latency_ms`, `cost_usd`, `credits_used`, `plant_id`, `summarized_payload` (trigger limita a 4096 bytes) e nega INSERT ao cliente — a escrita passa por `logAiUsage` com service role. Basta acrescentar a constante `AI_FEATURE_PRODUCT_LABEL = "product_label"` e alguns campos opcionais de payload. Nenhuma migração é necessária nessa tabela.
+- **`products`**: já tem todos os campos alvo da extração (`name`, `brand`, `category`, `npk`, `description`, `quantity`, `unit`, `expires_at`, `notes`) com RLS por `is_account_member(account_id)`.
+- **Buckets**: `plant-photos` (privado) e `database_export_24_08_26`. `plant-photos` é semanticamente de plantas e suas policies servem o domínio de plantas — **não será reutilizado**.
 
-| Coluna | Tipo | Nulo | Default |
-| --- | --- | --- | --- |
-| id | uuid | não | gen_random_uuid() |
-| account_id | uuid | não | — |
-| created_by | uuid | sim | — |
-| name | text | não | — |
-| category | text | sim | — |
-| brand | text | sim | — |
-| quantity | numeric | sim | — |
-| unit | text | sim | — |
-| notes | text | sim | — |
-| created_at | timestamptz | não | now() |
-| updated_at | timestamptz | não | now() |
+## 2. Experiência de usuário
 
-RLS já ativa e correta, 4 políticas para `authenticated`, todas via `is_account_member(account_id)` (SELECT/UPDATE/DELETE em `qual`, INSERT/UPDATE em `with_check`). Trigger `trg_products_updated_at` já mantém `updated_at`. Isolamento por conta já garantido — nada muda aqui.
+- **CTA**: em `/products`, botão secundário "Ler rótulo por foto" ao lado do "+" e também no bloco de lista vazia; no formulário `/products/new`, um link discreto no topo ("Preencher a partir de uma foto"). Na edição, nada — evita sobrescrever dados existentes por engano.
+- **Rota nova** `/products/label` (mobile-first, mesmo chrome `PlantScreen` da identificação de plantas), com passos:
+  1. **Captura** — `input capture="environment"` + escolher da galeria. Uma foto basta; um botão "Adicionar verso" permite a segunda (máx. 2). Sem exigir duas no primeiro uso.
+  2. **Prévia** — miniaturas, remover/refazer, botão "Ler rótulo".
+  3. **Processando** — reaproveita o padrão de `AnalyzingStep` (upload → analisando).
+  4. **Resultado** — abre o formulário de produto pré-preenchido em modo rascunho.
+- **Rascunho, nunca gravação automática**: a IA só popula estado local do `ProductForm`; o produto só existe depois que o usuário toca em "Salvar".
+- **Campos extraídos**: nome, marca, categoria (mapeada para a lista existente), NPK, quantidade, unidade, validade, descrição/uso e dose/instruções (concatenada em `notes` como bloco identificável). Campos não encontrados ficam vazios — nunca inventados.
+- **Confiança sem falsa precisão**: por campo, apenas dois estados visuais — "lido do rótulo" (badge discreto no label) e "não encontrado" (campo vazio, placeholder normal). Um aviso único no topo: "Confira os dados antes de salvar." Sem percentuais.
+- **Estados**: permissão/câmera indisponível (fallback para galeria), upload falhou (retry por foto), processando, erro do provider (retry quando `retryable`), rótulo ilegível, imagem não é rótulo de produto, cancelar (descarta e volta), nova foto (recomeça).
 
-Já suportam o cadastro manual: nome, marca, categoria, quantidade, unidade, observações.
+## 3. Backend e IA
 
-Faltam (migração aditiva, sem tocar em `account_id` nem em RLS):
+- Nova server function `src/lib/product-label.functions.ts` → `readProductLabel`, `POST`, com `.middleware([requireSupabaseAuth])`, espelhando as travas de tenant de `plant-identification.functions.ts` (membership ativa + prefixo `{accountId}/` em todo path).
+- Adapter `src/lib/ai/product-label.server.ts`: Gemini Flash via AI Gateway, `Output.object` com schema Zod estrito (todos os campos nullable), timeout de 45 s, temperatura baixa. Prompt exige JSON puro, proíbe inventar valores, exige `isLabel: false` quando a foto não é um rótulo e `unreadable: true` quando ilegível.
+- Pós-validação no servidor, nunca confiar na IA: NPK só aceito se casar com `NPK_PATTERN`; `quantity` só se numérico ≥ 0; `unit` só se pertencer a `PRODUCT_UNITS`; `category` só se pertencer a `PRODUCT_CATEGORIES`; `expires_at` só se for data ISO válida; textos truncados. O que não passar vira `null`.
+- Limites: 1–2 imagens, jpeg/png/webp, máx. 8 MB por arquivo, redimensionamento no cliente para lado maior de 1600 px antes do upload (reduz custo e latência).
+- **Erros**: reutiliza `AiVisionError`/categorias existentes (`timeout`, `rate_limited`, `no_credits`, `provider_blocked`, `provider_unavailable`, `invalid_image`, `unknown`) e a semântica de retry do Gateway. JSON inválido → categoria `unknown`, sem retry automático.
+- **`ai_usage_log`**: uma linha por tentativa, sucesso ou falha, com `feature: "product_label"`, provider/modelo, tokens, latência, custo/créditos quando reportados, e payload resumido (`image_count`, `fields_extracted`, `is_label`, `unreadable`, `error_category`). Nenhum texto de rótulo é persistido no log.
+- Chaves de IA só no servidor (`process.env` dentro do handler), como já é hoje.
 
-- `is_archived boolean not null default false` — arquivamento em vez de exclusão física
-- `npk text` — texto validado no app no formato `N-P-K` (ex.: `10-10-10`)
-- `description text` — descrição/uso
-- `expires_at date` — validade opcional
-- Constraints: `quantity >= 0`; `npk` com CHECK de formato (`^\d{1,2}(\.\d)?-\d{1,2}(\.\d)?-\d{1,2}(\.\d)?$`) permitindo NULL
-- Índice: `(account_id, is_archived, created_at desc)` para a listagem
+## 4. Dados e armazenamento
 
-Sem novos GRANTs (tabela já existente e já concedida).
+- **Decisão: foto temporária, descartada após a extração.** O valor do rótulo é o dado estruturado, não a imagem; guardar fotos de rótulo cria custo e superfície de dados sem uso no cenário atual (uso pessoal/profissional pequeno-médio). A imagem é apagada logo após a leitura, e também em cancelamento/erro (best-effort).
+- **Bucket novo privado `product-labels`** (criado pela ferramenta de storage), com policies em `storage.objects` restritas a `is_account_member` sobre o primeiro segmento do path: `{account_id}/{uuid}.ext`. Nada de reuso de `plant-photos`.
+- **Nenhuma migração em `products` ou `ai_usage_log`** — a única mudança de banco são as policies do bucket novo (aditivas). Limpeza: exclusão imediata pós-extração; sobras eventuais ficam isoladas por conta.
 
-## 2. Fluxo de interface
+## 5. Entrega e QA
 
-Navegação: o card "Produtos" hoje está em `/app` na seção "Em breve" com badge `soon`. Ele passa a ser um link ativo para `/products`, no mesmo grupo dos links Plantas/Tarefas/Notificações, com o ícone `Package` já usado.
+**Bloco A — Storage**: criar bucket privado `product-labels` + policies RLS por conta.
 
-Telas (todas usando o padrão existente `PlantScreen`-like, renomeado/reutilizado como chrome mobile-first, e `FormCard`/`PlantFormCard`):
+**Bloco B — Backend/IA**: `src/lib/ai/product-label.server.ts` (schema, prompt, mapeamento de erro), `src/lib/ai/usage-log.server.ts` (+`AI_FEATURE_PRODUCT_LABEL` e campos de payload), `src/lib/product-label.functions.ts`.
 
-- `/products` — lista. Header com título e botão "+" de ação. Cada item é uma linha compacta: nome + marca, chip de categoria, quantidade+unidade à direita, e badge discreto de validade quando vencida/próxima. Filtro segmentado (`SegmentedTabs`, já existe) com "Ativos" / "Arquivados".
-- Vazio: bloco ilustrado com ícone, frase curta e CTA "Adicionar produto" — não é card stacking genérico, segue o padrão das telas de plantas.
-- Carregando: skeletons de linha. Erro: mensagem inline com botão "Tentar novamente".
-- `/products/new` e `/products/$productId/edit` — mesmo formulário, campos: nome (obrigatório), marca, categoria (select: adubo, fertilizante, substrato, defensivo, ferramenta, outro), NPK, descrição/uso, quantidade + unidade (select: g, kg, ml, L, un), validade, observações.
-- Detalhe: nesta subetapa o item da lista abre direto a edição (mantém o app enxuto); arquivamento e exclusão ficam no rodapé do formulário.
-- Arquivar/desarquivar: ação primária. Exclusão física existe, mas atrás de `AlertDialog` de confirmação com texto explícito.
-- Toasts `sonner` para sucesso/erro, como no restante do app.
+**Bloco C — Cliente/upload**: `src/lib/product-label.ts` (validação, redimensionamento, upload/delete de staging, tipos do rascunho).
 
-Todo o texto entra em `translations.ts` nos três idiomas (pt/en/es).
+**Bloco D — UI**: `src/routes/_authenticated/products.label.tsx` + passos em `src/components/products/label/` (captura, prévia, processando, erro); `ProductForm` ganha suporte a `draftFields` (badge "lido do rótulo"); CTAs em `products.index.tsx` e `products.new.tsx`.
 
-## 3. Regras de negócio
+**Bloco E — i18n e QA**: chaves pt/en/es em `src/i18n/translations.ts`, `head()` da rota nova, execução dos testes.
 
-- Todo produto pertence a `account_id` (o `activeAccountId` do contexto); `created_by` é apenas auditoria.
-- Leitura/escrita somente por membros ativos da conta — já garantido pelas políticas existentes.
-- Validações no cliente: nome obrigatório (1–120), quantidade numérica ≥ 0 e opcional, NPK no formato `N-P-K` quando preenchido, validade sendo data válida (permite passado, mas exibe badge "vencido").
-- Produtos arquivados são excluídos da listagem padrão; visíveis no filtro "Arquivados" e restauráveis.
-- Nenhuma IA, nenhuma recomendação, nenhuma ligação com plantas nesta subetapa.
-
-## 4. Blocos de implementação
-
-**Bloco A — Schema/RLS (migração)**
-Adiciona `is_archived`, `npk`, `description`, `expires_at`, CHECKs e índice. RLS e `account_id` intocados.
-
-**Bloco B — Camada de dados**
-`src/lib/products.ts`: chaves de query escopadas por conta, `productsListQuery(accountId, { archived })`, `productDetailQuery`, `createProduct`, `updateProduct`, `setProductArchived`, `deleteProduct` — sempre com `.eq("account_id", accountId)`, espelhando `src/lib/plants.ts`.
-
-**Bloco C — Listagem**
-`src/routes/_authenticated/products.index.tsx` + `src/components/products/product-list-item.tsx` + estados vazio/carregando/erro. Ativa o link em `src/routes/_authenticated/app.tsx`.
-
-**Bloco D — Formulário**
-`src/components/products/product-form.tsx` sobre `PlantFormCard`/`FormCard`, mais `products.new.tsx` e `products.$productId.edit.tsx`, incluindo arquivar/restaurar e diálogo de exclusão.
-
-**Bloco E — i18n e QA**
-Chaves pt/en/es; `head()` próprio em cada rota nova.
-
-Arquivos criados: `src/lib/products.ts`, `src/components/products/product-form.tsx`, `src/components/products/product-list-item.tsx`, `src/routes/_authenticated/products.index.tsx`, `products.new.tsx`, `products.$productId.edit.tsx`.
-Arquivos modificados: `src/routes/_authenticated/app.tsx`, `src/i18n/translations.ts`.
-
-**Testes sugeridos**
-- Leitura: lista vazia, lista com itens, filtro arquivados.
-- Escrita: criar, editar, arquivar, restaurar, excluir com confirmação.
-- Validação: nome vazio, quantidade negativa, NPK inválido, data inválida.
-- Isolamento RLS: com uma segunda conta, confirmar que produtos da conta A não aparecem nem são editáveis pela conta B (via query direta com id conhecido).
-- Arquivamento: produto arquivado some da lista padrão e volta ao restaurar.
+**Testes**
+- Rótulo nítido: campos preenchidos coerentes.
+- Frente + verso: uma única chamada, dados combinados.
+- NPK `4-5-6` reconhecido; NPK fora do padrão descartado (campo vazio).
+- Foto borrada → estado "rótulo ilegível"; foto que não é rótulo → estado "não é um rótulo".
+- Produto sem NPK: salva normalmente.
+- Falha de provider: mensagem correta e retry só quando aplicável.
+- Nada é gravado em `products` antes do "Salvar".
+- RLS: conta B não lê a foto nem os produtos da conta A.
+- Exatamente uma linha em `ai_usage_log` por tentativa, inclusive nas falhas.
