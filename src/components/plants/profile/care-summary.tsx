@@ -1,7 +1,8 @@
 import { Droplets, Leaf, Sun } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SegmentedTabs } from "@/components/ui/segmented-tabs";
+import { TabsContent } from "@/components/ui/tabs";
 import { useI18n } from "@/i18n/i18n";
 import { LIGHT_LABEL } from "@/components/plants/profile/care-profile-sheet";
 import { isLightExposure, type PlantCareProfileRow } from "@/lib/plant-care-profile";
@@ -47,21 +48,17 @@ export function CareSummary({ profile }: { profile: PlantCareProfileRow | null }
   const fertNote = profile?.fertilizing_note ?? null;
 
   return (
-    <Tabs defaultValue="water" className="mt-5">
-      <TabsList className="grid w-full grid-cols-3">
-        <TabsTrigger value="water" className="gap-1.5">
-          <Droplets className="size-4" aria-hidden />
-          {t("care.tab.water")}
-        </TabsTrigger>
-        <TabsTrigger value="light" className="gap-1.5">
-          <Sun className="size-4" aria-hidden />
-          {t("care.tab.light")}
-        </TabsTrigger>
-        <TabsTrigger value="fertilizer" className="gap-1.5">
-          <Leaf className="size-4" aria-hidden />
-          {t("care.tab.fertilizer")}
-        </TabsTrigger>
-      </TabsList>
+    <SegmentedTabs
+      groupId="care"
+      defaultValue="water"
+      className="mt-5"
+      items={[
+        { value: "water", label: t("care.tab.water"), icon: Droplets },
+        { value: "light", label: t("care.tab.light"), icon: Sun },
+        { value: "fertilizer", label: t("care.tab.fertilizer"), icon: Leaf },
+      ]}
+    >
+
 
       <TabsContent value="water" className="mt-3">
         <Section empty={!waterInterval && !waterNote}>
@@ -128,6 +125,6 @@ export function CareSummary({ profile }: { profile: PlantCareProfileRow | null }
           ]}
         </Section>
       </TabsContent>
-    </Tabs>
+    </SegmentedTabs>
   );
 }
