@@ -61,7 +61,7 @@ export function PlantForm({
 
   return (
     <PlantFormCard
-      title={t("plants.details")}
+      title={t("details.title")}
       animate={false}
       submitLabel={submitLabel}
       isSubmitting={isSubmitting}
