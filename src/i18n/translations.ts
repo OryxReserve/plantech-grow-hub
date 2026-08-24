@@ -20,6 +20,15 @@ const dictionaries = {
     "upload.invalidType": "Formato de imagem não suportado.",
     "upload.invalidSize": "Imagem muito grande.",
 
+    "badge.status.completed": "Concluído",
+    "badge.status.pending": "Pendente",
+    "badge.status.active": "Ativo",
+    "badge.status.inactive": "Inativo",
+    "badge.status.error": "Erro",
+    "badge.status.warning": "Atenção",
+    "badge.completion.completed": "Concluído",
+    "badge.completion.pending": "Pendente",
+
     "meta.root.title": "Plantech",
     "meta.root.description":
       "Plantech — cuidado de plantas, jardim e armário de produtos, multi-conta e mobile-first.",
