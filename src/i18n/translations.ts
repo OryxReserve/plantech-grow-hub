@@ -261,6 +261,13 @@ const dictionaries = {
     "care.noPhoto": "Esta planta ainda não tem foto.",
     "care.fieldHint.noUsefulText":
       "Esse campo parece não ter texto útil. Você pode revisar ou salvar assim mesmo.",
+    "checklist.title": "Completude do perfil",
+    "checklist.subtitle": "Quanto mais completo, melhores as recomendações de cuidado.",
+    "checklist.speciesName": "Tipo de planta",
+    "checklist.potSize": "Tamanho do vaso",
+    "checklist.windowDistance": "Distância da janela",
+    "checklist.lightExposure": "Luz direta",
+
     "timeline.title": "Histórico de cuidados",
     "timeline.empty": "Ainda não há eventos registrados para esta planta.",
     "timeline.error": "Não foi possível carregar o histórico.",
@@ -600,6 +607,13 @@ const dictionaries = {
     "care.noPhoto": "This plant has no photo yet.",
     "care.fieldHint.noUsefulText":
       "This field doesn't seem to contain useful text. You can review it or save anyway.",
+    "checklist.title": "Profile completeness",
+    "checklist.subtitle": "The more complete it is, the better the care recommendations.",
+    "checklist.speciesName": "Plant type",
+    "checklist.potSize": "Pot size",
+    "checklist.windowDistance": "Distance from window",
+    "checklist.lightExposure": "Direct light",
+
     "timeline.title": "Care history",
     "timeline.empty": "No events recorded for this plant yet.",
     "timeline.error": "The history could not be loaded.",
@@ -940,6 +954,13 @@ const dictionaries = {
     "care.noPhoto": "Esta planta aún no tiene foto.",
     "care.fieldHint.noUsefulText":
       "Este campo parece no tener texto útil. Puedes revisarlo o guardarlo así.",
+    "checklist.title": "Perfil completo",
+    "checklist.subtitle": "Cuanto más completo, mejores serán las recomendaciones de cuidado.",
+    "checklist.speciesName": "Tipo de planta",
+    "checklist.potSize": "Tamaño de la maceta",
+    "checklist.windowDistance": "Distancia a la ventana",
+    "checklist.lightExposure": "Luz directa",
+
     "timeline.title": "Historial de cuidados",
     "timeline.empty": "Todavía no hay eventos registrados para esta planta.",
     "timeline.error": "No se pudo cargar el historial.",
