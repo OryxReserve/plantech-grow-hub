@@ -158,7 +158,7 @@ function TaskList({
   emptyTitle: string;
   emptyBody: string;
   onComplete: (task: CareTask) => void;
-  pendingId?: string;
+  pendingId?: string | undefined;
 }) {
   const { t } = useI18n();
 
