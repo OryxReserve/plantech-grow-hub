@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Leaf, Droplets, Package, ChevronRight, ScanLine } from "lucide-react";
+import { BellRing, Leaf, Droplets, Package, ChevronRight, ScanLine } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useActiveAccount, type AccountRole } from "@/context/active-account";
