@@ -1,167 +1,106 @@
-# Restauração no Supabase próprio + troca de LOVABLE_API_KEY por Gemini direto
+# Reconexão ao Supabase próprio (PlanTech App) — plano e QA
 
-Plano de execução. Nada será alterado no projeto atual até aprovação, e a remoção do Lovable Cloud **não** faz parte deste plano.
+Antes do passo a passo, um bloqueio real que muda a forma do plano. Prefiro dizer agora do que você descobrir no meio do Build.
 
-Uma observação importante antes de tudo: este ambiente de build não tem credenciais do seu projeto `umttqvgapxvcgtjkjeyn`, então a execução dos passos de restauração é feita por você (ou por mim, se você fornecer uma connection string/service key temporária de trabalho). O que entrego aqui é o runbook exato, os scripts a criar e o método de verificação de cada etapa.
+## O bloqueio: este projeto não pode ser repontado
 
-## Achados do export que mudam a ordem de execução
+Este projeto tem Lovable Cloud ativo. Uma vez ativado, o Cloud **não pode ser desconectado nem apontado para um Supabase externo** — não existe tela de "Connect your own Supabase project" para um projeto que já roda no Cloud. Restaurar uma versão anterior também não remove o Cloud.
 
-Inspecionei `public_schema_data.sql` (1696 linhas). A ordem real do dump é:
+Isso não é uma questão de preferência ou de UI escondida; é estrutural, e o código confirma:
 
-```text
-L40    CREATE TYPE (4 enums)
-L87    CREATE FUNCTION (9 funções)
-L266   CREATE TABLE (12 tabelas)
-L506   COPY ... FROM stdin (dados de todas as tabelas)
-L659   ALTER TABLE ONLY (PK, UNIQUE e FKs — inclusive as para auth.users)
-L909   CREATE TRIGGER (9 triggers, todos em public)
-L1156  ENABLE ROW LEVEL SECURITY + 38 CREATE POLICY
-L1600+ GRANT (até L1696)
-```
+- `src/integrations/supabase/client.ts`, `client.server.ts`, `auth-middleware.ts`, `auth-attacher.ts`, `types.ts` e o `.env` são **arquivos auto-gerados pela integração do Cloud**. O `.env` é reescrito pela plataforma a cada rebind — um commit meu apontando para `umttqvgapxvcgtjkjeyn` é sobrescrito na próxima operação de backend.
+- `SUPABASE_*` é um **prefixo reservado**: a ferramenta de secrets deste ambiente não consegue gravar `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` nem `SUPABASE_SERVICE_ROLE_KEY`. Esses três valores são derivados automaticamente do projeto Cloud vinculado. Não há caminho por onde eu injete os seus valores.
 
-Três consequências:
+Ou seja: os itens 1, 2 (parte Supabase) e 4 da sua Parte 1 não têm execução possível dentro **deste** projeto. Não vou planejar passos que vão falhar.
 
-1. **A ordem interna do dump já é correta** — funções antes de triggers, dados antes das FKs. Nenhum reordenamento manual é necessário *dentro* do arquivo.
-2. **Os usuários precisam existir antes da linha 659**, não antes da 506. As FKs para `auth.users` só são validadas no `ALTER TABLE ADD CONSTRAINT`, e são validadas contra as linhas já carregadas. Como não vale a pena partir o arquivo, a regra prática é: **usuários primeiro, dump inteiro depois**.
-3. **Risco crítico encontrado:** o trigger `on_auth_user_created` (em `auth.users` → `handle_new_user()`) cria automaticamente `profiles` + `accounts` + `account_members` para cada usuário novo. O dump traz a *função*, e o trigger em `auth` você recria manualmente. Se o trigger existir quando você rodar `createUser()`, cada um dos 4 usuários gera uma conta duplicada que colide com os dados restaurados. **O trigger em `auth.users` é o último passo de todos**, depois do restore completo.
+## Os dois caminhos que realmente funcionam
 
-Achado menor: o dump contém `GRANT ... TO "sandbox_exec"` (role interno do Lovable, ex.: L1696). Esse role não existe no seu projeto e o `GRANT` falha. Essas linhas precisam ser removidas antes de aplicar.
+O código já está no GitHub (`OryxReserve/plantech-grow-hub`) e o Supabase novo já está restaurado e validado. O que falta é escolher onde o app roda.
 
-Também há um prefixo `_staging/` no bucket (3 dos 12 objetos são fotos de staging da identificação, não anexadas a plantas) — eles não têm linha em `plant_photos` e podem ser reenviados ou descartados; recomendo reenviar para manter paridade byte a byte.
+### Caminho A — Projeto Lovable novo, criado a partir do repo, sem Cloud
+Você cria um projeto Lovable novo importando o repositório e **não** ativa o Lovable Cloud nele. Como não há Cloud, o prefixo `SUPABASE_*` deixa de ser gerenciado pela plataforma e os valores do seu projeto entram como variáveis normais. Este projeto atual permanece intacto, com o Cloud antigo ligado, como rede de segurança — reversibilidade total, porque nada aqui é tocado.
 
-## Parte 1 — Runbook de restauração
+O custo: os arquivos hoje auto-gerados (`client.ts`, `client.server.ts`, `auth-middleware.ts`, `auth-attacher.ts`, `types.ts`) passam a ser arquivos comuns do seu repo, mantidos por você. Na prática o conteúdo deles já é genérico — leem `SUPABASE_URL`/`VITE_SUPABASE_URL` etc. — então é adoção, não reescrita.
 
-### Passo 1 — Preparar o SQL (local, sem tocar em nada)
-1.1. Extrair `plantech-export.tar.gz` num diretório de trabalho.
-1.2. Gerar `public_schema_restore.sql` a partir de `public_schema_data.sql` removendo apenas as linhas `GRANT ... TO "sandbox_exec"`. Nenhuma outra edição.
-1.3. Conferir que o arquivo ainda tem 4 `CREATE TYPE`, 9 `CREATE FUNCTION`, 12 `CREATE TABLE`, 9 `CREATE TRIGGER`, 38 `CREATE POLICY` — contagem por `grep -c`, comparada com o original.
+### Caminho B — Hospedar fora da Lovable
+Deploy do mesmo repo em Cloudflare Workers ou Vercel, com as variáveis definidas no painel do host. O app é TanStack Start e já tem o alvo edge configurado. A Lovable deixa de ser runtime e vira só editor.
 
-### Passo 2 — Recriar os 4 usuários com UUID preservado
-2.1. Script Node (`scripts/restore-users.ts`, executado localmente com a service key do projeto novo) que lê `auth_users.json` e, para cada usuário, chama:
-```ts
-await admin.auth.admin.createUser({
-  id: u.id,                      // UUID original — obrigatório
-  email: u.email,
-  email_confirm: true,           // preserva email_confirmed_at
-  user_metadata: u.user_metadata,
-});
-```
-2.2. Senhas **não migram** (o hash não é exportável). Logo após criar, o mesmo script gera, para cada usuário, um link de recuperação:
-```ts
-await admin.auth.admin.generateLink({ type: 'recovery', email: u.email });
-```
-Os 4 links são impressos e entregues a você. Nenhum usuário fica em estado quebrado silencioso: ou ele recebe o link, ou é recriado com senha temporária definida por você via `password:` no `createUser`.
-2.3. **Não** criar o trigger `on_auth_user_created` ainda.
+Nos dois caminhos, nenhuma linha de código precisa mudar para a troca de backend: o grep abaixo prova que tudo é lido de variável de ambiente.
 
-### Passo 3 — Aplicar schema + dados
-3.1. Rodar `public_schema_restore.sql` inteiro, numa transação, contra o projeto novo (via `psql` na connection string, ou via migration no painel).
-3.2. Se qualquer FK falhar, a transação inteira reverte — o erro apontará exatamente qual usuário/registro está faltando.
-3.3. Como "Automatically expose new tables" está desabilitado no seu projeto, expor explicitamente as 12 tabelas na Data API depois do restore (os `GRANT` do dump cobrem os privilégios; a exposição do schema na Data API é configuração de projeto, à parte).
+## Onde o código lê cada variável (grep real)
 
-### Passo 4 — Recriar o trigger de auth
-Só agora, depois que os dados estão dentro:
-```sql
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-```
-A partir daqui, cadastros novos voltam a criar conta pessoal automaticamente.
-
-### Passo 5 — Storage
-5.1. Criar o bucket `plant-photos` como **privado** (mesma config do `storage_metadata.sql`: sem `public`, sem limite de tamanho declarado).
-5.2. Recriar as políticas de `storage.objects` do projeto antigo (escopo pelo primeiro segmento do path = `account_id`), aplicadas por SQL.
-5.3. Script de reupload que percorre `storage/plant-photos/**` e envia cada arquivo com o **path relativo idêntico** (`{account_id}/{plant_id}/{uuid}.jpg`, incluindo `_staging/`), com `contentType: image/jpeg` e `upsert: false`.
-5.4. Nenhuma alteração em `plant_photos.storage_path` — os paths continuam resolvendo.
-
-### Passo 6 — Secrets e variáveis
-Ver tabela na Parte 3.
-
-### Passo 7 — Troca do provider de IA (código)
-Ver Parte 2.
-
-### Passo 8 — QA completo
-Ver Parte 4. Só depois disso se discute remover o Lovable Cloud do projeto original.
-
-## Parte 2 — Troca de LOVABLE_API_KEY por Gemini direto
-
-### O que muda
-- Instalar `@ai-sdk/google` (hoje o projeto só tem `@ai-sdk/openai-compatible` e `ai@^7`).
-- Substituir `src/lib/ai/ai-gateway.server.ts` por `src/lib/ai/google-ai.server.ts`, exportando um `createGoogleProvider()` que usa `createGoogleGenerativeAI({ apiKey: process.env['GOOGLE_GENERATIVE_AI_API_KEY'] })`.
-- O helper de run-id (`X-Lovable-AIG-Run-ID`) deixa de existir: é um cabeçalho do gateway Lovable, sem equivalente no Google. `requestId` passa a ser `null` nos dois call sites, e `ai_usage_log.summarized_payload.request_id` fica nulo nessas linhas.
-
-### O que NÃO muda
-Este é o ponto tranquilizador: `lovable-vision.server.ts` e `species-care.server.ts` **não falam formato OpenAI-compatible**. Eles falam AI SDK (`streamText`, `Output.object`, `messages` com partes `text`/`file`, `await stream.output`, `await stream.usage`). O formato OpenAI-compatible está encapsulado dentro do provider. Trocar o provider por `@ai-sdk/google` mantém toda a lógica de prompt, schema Zod, parsing, `salvageCandidates`, timeout e categorias de erro **intactos**. A mudança real é de uma linha por arquivo: qual factory produz o `model`.
-
-O que precisa de atenção pontual:
-- A parte `{ type: 'file', mediaType, data: base64 }` é suportada pelo provider Google, mas vale confirmar no primeiro teste real com imagem (é exatamente o QA 5).
-- Mapeamento de erro: `categorizeStatus`/`AiVisionError` hoje interpreta status do gateway. Os status do Google (`400` inválido, `403` chave, `429` quota, `5xx`) mapeiam para as mesmas categorias, mas o wrapper de erro do AI SDK precisa ser lido de `error.statusCode` em vez do fetch cru — ajuste localizado em `lovable-vision.server.ts`.
-
-### Nomes de modelo
-`google/gemini-3-pro` e `google/gemini-3.7-flash` são ids **do gateway**. A API direta do Google usa ids sem prefixo e com sufixo próprio. Não vou chutar o id: o primeiro passo do Build é listar os modelos disponíveis na sua chave (`GET https://generativelanguage.googleapis.com/v1beta/models`) e escolher o par correspondente (um pro multimodal para visão, um flash para texto). Os ids escolhidos ficam em constantes exportadas, como já estão hoje.
-
-### Renomear ou não o `AI_VISION_PROVIDER=lovable`
-Recomendo **renomear para `google`**. Manter `"lovable"` significando "Gemini direto" é uma armadilha de leitura para qualquer um que abrir o arquivo depois. A mudança é: `lovable-vision.server.ts` → `google-vision.server.ts`, provider `name: "google"`, e o registry passa a aceitar `google` (com `lovable` aceito como alias silencioso, para não quebrar nada que já esteja setado). O padrão continua sendo Kindwise.
-
-Consequência em telemetria: `ai_usage_log.provider` passa a gravar `"google"` nas linhas novas. As linhas antigas com `"lovable"` continuam lá, historicamente corretas. **Nenhuma mudança de schema** — a coluna é `text` e a chamada a `logAiUsage()` é idêntica.
-
-### Sobre o `logorion.server.ts`
-Aproveitar a troca para removê-lo. É um placeholder que só lança erro e sugere uma capacidade inexistente.
-
-## Parte 3 — Variáveis de ambiente no ambiente novo
-
-| Variável | Origem | Ação |
+| Variável | Lida em | Observação |
 | --- | --- | --- |
-| `SUPABASE_URL` / `VITE_SUPABASE_URL` | **novo** | Do projeto `umttqvgapxvcgtjkjeyn` |
-| `SUPABASE_PUBLISHABLE_KEY` / `VITE_SUPABASE_PUBLISHABLE_KEY` | **novo** | Do projeto novo |
-| `SUPABASE_SERVICE_ROLE_KEY` | **novo** | Do projeto novo. O valor antigo é descartado |
-| `VITE_SUPABASE_PROJECT_ID` | **novo** | `umttqvgapxvcgtjkjeyn` |
-| `GOOGLE_GENERATIVE_AI_API_KEY` | **novo** | Chave da Generative Language API. Sem restrição de referrer (é chamada de servidor) |
-| `KINDWISE_API_KEY` | reaproveitado | Mesmo valor |
-| `GOOGLE_API_KEY` | reaproveitado | Firebase Web Key. Continua restrita por referrer — adicionar o domínio novo |
-| `FCM_PROJECT_ID` / `FCM_CLIENT_EMAIL` | reaproveitado | Mesmo valor |
-| `FCM_PRIVATE_KEY` | reaproveitado | Preservar os `\n` exatos, ou a assinatura RS256 quebra |
-| `LOVABLE_CRON_SECRET` | **novo** | Gerar segredo próprio para o cron da Fase 3.3 |
-| `AI_VISION_PROVIDER` | opcional | Omitir; padrão é Kindwise |
-| `LOVABLE_API_KEY` | **removido** | Não recadastrar |
-| `AWS_ACCESS_KEY_ID` | ignorar | Não é referenciado por nenhum código do projeto |
+| `VITE_SUPABASE_URL` → fallback `SUPABASE_URL` | `client.ts:34` | Browser + SSR |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` → fallback `SUPABASE_PUBLISHABLE_KEY` | `client.ts:35` | Browser + SSR |
+| `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` | `client.server.ts:33-34` | Cliente admin |
+| `SUPABASE_URL` + `SUPABASE_PUBLISHABLE_KEY` | `auth-middleware.ts:36-37` | Server fns autenticadas |
+| `GOOGLE_API_KEY` | `push.functions.ts:13` | Firebase Web Key |
+| `FCM_PROJECT_ID` / `FCM_CLIENT_EMAIL` / `FCM_PRIVATE_KEY` | `push/fcm.server.ts` | Assinatura RS256 |
+| `KINDWISE_API_KEY` | `ai/kindwise.server.ts:110` | Identificação Fase 1 |
+| `LOVABLE_API_KEY` | `ai/lovable-vision.server.ts:149`, `ai/species-care.server.ts:70` | A descontinuar |
+| `AI_VISION_PROVIDER` | `ai/provider-registry.server.ts:12` | Opcional |
+| `LOVABLE_CRON_SECRET` | `integrations/supabase/cron-auth.ts` | Fase 3.3, ainda não usada |
 
-## Parte 4 — Como cada item de QA será verificado
+`VITE_SUPABASE_PROJECT_ID` não é lido por nenhum código da aplicação — só existe no `.env` como metadado. Não é bloqueante.
 
-**1. UUIDs idênticos, zero FK órfã.**
-Depois do Passo 2, rodar no projeto novo `SELECT id, email FROM auth.users ORDER BY id` e comparar com `jq -r '.[].id' auth_users.json | sort` — as duas listas têm que ser byte a byte iguais. A prova forte é o Passo 3: se algum UUID divergisse, o `ALTER TABLE ADD CONSTRAINT ... REFERENCES auth.users` da linha 659 falharia e a transação inteira reverteria. Restore que completa = zero FK órfã, por construção. Complemento: um `LEFT JOIN` de `accounts.created_by`, `plants.created_by`, `plant_photos.uploaded_by`, `push_subscriptions.user_id` contra `auth.users` retornando 0 linhas nulas.
+Confirmação do seu item 3: **a troca de valores é suficiente**. Nenhuma mudança de código é necessária para trocar de backend.
 
-**2. As 38 políticas ativas e isolando de verdade.**
-Duas camadas. Estrutural: `SELECT count(*) FROM pg_policies WHERE schemaname='public'` = 38, e `SELECT relname FROM pg_class WHERE relrowsecurity = false` sem nenhuma das 12 tabelas. Comportamental — que é o que realmente prova: abrir uma sessão como o usuário da conta A (via `set_config('request.jwt.claims', ...)` com o `sub` do usuário real, ou logando no app), rodar `SELECT count(*) FROM plants` e conferir que retorna só as plantas da conta A; repetir para a conta B; e tentar `SELECT * FROM plants WHERE account_id = '<conta alheia>'` esperando 0 linhas. Existem 2 contas com plantas no dump, então o teste cruzado é possível com dados reais. Também testar que `ai_usage_log` nega INSERT como `authenticated`.
+Sobre `LOVABLE_CRON_SECRET`: gere um novo. Não tem impacto funcional (a Fase 3.3 não existe ainda) e é higiene não carregar segredo de ambiente antigo.
 
-**3. Os 9 triggers funcionando, não só presentes.**
-Cada um é exercitado com uma operação real, em transação revertida (`BEGIN; ...; ROLLBACK;`):
-- `validate_account_timezone`: `UPDATE accounts SET timezone='Nao/Existe'` **tem que** levantar `invalid IANA timezone`; `UPDATE ... SET timezone='America/Sao_Paulo'` tem que passar.
-- `validate_ai_usage_payload`: inserir (como service_role) uma linha com `summarized_payload` > 4096 bytes tem que ser rejeitada.
-- os 7 `set_updated_at`/`handle_updated_at`: `UPDATE` numa linha e verificar que `updated_at` avançou em relação ao valor anterior.
-- `on_auth_user_created` (Passo 4): criar um usuário descartável e conferir que nasceram 1 `profiles`, 1 `accounts` e 1 `account_members` com role `owner`; depois apagar o usuário.
+## Parte 2 — O que acontece sem `LOVABLE_API_KEY`
 
-**4. As 12 fotos abrindo na UI.**
-Nível bucket: comparar `SELECT count(*), name FROM storage.objects WHERE bucket_id='plant-photos'` com os 12 caminhos do diretório local, e comparar tamanho em bytes de cada objeto com o arquivo de origem. Nível aplicação — o que conta: com o app rodando apontado para o projeto novo e logado como o dono da conta com fotos, abrir a lista de plantas e o detalhe de cada planta que tem foto, e confirmar visualmente que as 9 fotos anexadas renderizam (as 3 de `_staging/` não aparecem na UI por definição). Isso exercita a geração de URL assinada + as políticas de `storage.objects` de uma vez. Faço isso com Playwright e entrego os screenshots.
+Resposta curta: **nada quebra de forma dura, e você não precisa fazer a troca de provider antes.**
 
-**5. Fases 1 e 2 continuam funcionando após a troca de provider.**
-Fase 2 (guia de cuidados, é o caminho que muda de provider) é o teste decisivo: apagar do cache uma linha de `species_care_guide` para uma espécie existente, abrir o detalhe dessa planta no app e confirmar que o guia é regerado, com texto em português, e que nasce uma linha nova em `ai_usage_log` com `feature='species_care_guide'`, `provider='google'`, `status='success'` e `tokens_in/out` preenchidos.
-Fase 1 tem dois caminhos: o padrão (Kindwise) **não é afetado** pela troca e é validado subindo uma foto pelo fluxo de identificação; o caminho Gemini é validado setando `AI_VISION_PROVIDER=google` temporariamente e repetindo a mesma identificação, conferindo que voltam candidatos com nome científico e que a linha em `ai_usage_log` registra `provider='google'`. Testar também o caminho de erro: com a chave inválida de propósito, a tela tem que mostrar a mensagem de `not_configured` e oferecer cadastro manual, sem travar.
+Detalhe por fase, lido do código:
 
-**6. Nenhum secret antigo referenciado.**
-`rg -n "LOVABLE_API_KEY|ai\.gateway\.lovable\.dev|fbcvxqotiyqnlehxsebr|sb_publishable_LKXvXXGhbGcp8g4rbpZ0Vg_ZaKOrBBM" src/ public/ supabase/ .env* package.json` tem que retornar zero. Complemento: `grep -r` no bundle de produção gerado (`dist/`) pelas mesmas strings, para provar que nada de servidor vazou para o cliente, e conferir que `getFirebaseWebConfig` continua sendo a única coisa que devolve chave ao browser.
+**Fase 1 — identificação.** Não é afetada. O provider padrão em `provider-registry.server.ts` é Kindwise, que usa só `KINDWISE_API_KEY`. O caminho Gemini/gateway só é acionado se você setar `AI_VISION_PROVIDER=lovable` explicitamente. Sem a chave e sem essa variável, o fluxo de identificação funciona igual.
 
-## Riscos remanescentes
+**Fase 2 — guia de cuidados.** Degrada de forma controlada, não trava. `generateSpeciesCare()` lança `Missing LOVABLE_API_KEY` logo na primeira linha; esse throw cai no `try/catch` de `species-care.functions.ts` (linha 81), que registra a falha em `ai_usage_log` com `status='error'` e retorna `{ ok: false, reason: "unavailable" }`. A UI mostra o estado de guia indisponível e o resto da tela da planta continua funcionando normalmente. E há um detalhe favorável: **espécies já geradas continuam funcionando**, porque o cache `species_care_guide` é lido antes de qualquer chamada de IA — o dump trouxe essas linhas junto. Só espécies novas ficam sem guia até a troca.
 
-| Risco | Mitigação |
-| --- | --- |
-| Trigger `on_auth_user_created` criando contas duplicadas durante o Passo 2 | Trigger só é criado no Passo 4, depois do restore. Se ainda assim duplicar, os `ON CONFLICT DO NOTHING` de `profiles`/`account_members` absorvem, mas `accounts` não — daí a ordem ser obrigatória |
-| Senhas não migram | Links de recovery gerados e entregues no próprio Passo 2 |
-| Id de modelo Gemini errado | Listar modelos da chave antes de escrever o código; nada é chutado |
-| `GRANT ... TO sandbox_exec` quebrando o restore | Removido no Passo 1.2, com contagem conferida |
-| Rate limit / cota da Generative Language API diferente do gateway | Só aparece sob uso real; o tratamento de erro atual já cobre `429` com mensagem clara |
+Conclusão prática: a janela de indisponibilidade é parcial e silenciosamente tratada. Ordem recomendada é reconectar primeiro, validar a Parte 3, e trocar o provider depois.
 
-## O que só pode ser validado depois de publicar no domínio novo
+## Parte 3 — Método de verificação de cada item
 
-- Push (Fase 3.2): o service worker exige HTTPS e origem estável, e a Firebase Web Key precisa do domínio novo na lista de referrers. Só testável após o deploy.
-- OAuth/redirect de recovery: os links de recuperação apontam para a URL configurada no projeto novo — ajustar `Site URL` e `Redirect URLs` antes de enviar os links aos usuários.
-- O cron da Fase 3.3 continua fora de escopo até a migração estar fechada.
+Tudo abaixo roda contra o ambiente novo (Caminho A ou B), com Playwright a partir deste sandbox quando envolve UI, e SQL direto quando envolve banco.
+
+**1. Login dos 4 usuários sem eu saber as senhas.**
+Não preciso das senhas reais. Duas vias: (a) `admin.auth.admin.generateLink({ type: 'magiclink', email })` com a service key, seguindo o link no Playwright — isso exercita o mesmo caminho de sessão que o login por senha e prova que o usuário existe e autentica no projeto novo; (b) para provar especificamente o fluxo **senha**, crio um 5º usuário descartável com senha conhecida, logo com ele pela tela `/auth`, e depois apago. Combinando os dois, fica provado que os 4 usuários autenticam e que o formulário de senha funciona, sem você revelar credencial nenhuma. Você disse que as senhas foram preservadas no `pg_restore` — nesse caso, se me passar a senha de um usuário de teste (`testes@ifound.click`), o teste (b) roda direto nele e fica ainda mais forte.
+
+**2. Leitura de dados batendo com o pré-migração.**
+Baseline: `SELECT id, nickname, species_name, scientific_name FROM plants ORDER BY id` no banco novo, comparado com as mesmas linhas do `public_schema_data.sql` exportado (10 plantas). Depois, logado na UI, abro `/plants` e confirmo que a contagem e os apelidos na tela batem com essa baseline — screenshot anexado.
+
+**3. Escrita persistindo no banco certo.**
+Edito o apelido de uma planta pela UI para um valor único e rastreável (ex.: `QA-<timestamp>`). Em seguida rodo `SELECT nickname, updated_at FROM plants WHERE nickname LIKE 'QA-%'` **no Supabase novo** — tem que aparecer — e a mesma query **no Cloud antigo**, que tem que retornar zero linhas. Essa dupla checagem é justamente a prova de que não sobrou escrita indo para o backend velho. Depois reverto o apelido.
+
+**4. RLS com 2 usuários.**
+Logo como usuário da conta A e capturo os `plants.id` visíveis; deslogo, logo como usuário da conta B e capturo os dele — os conjuntos têm que ser disjuntos. Complemento no banco: com `set_config('request.jwt.claims', ...)` para o `sub` do usuário A e `role authenticated`, `SELECT count(*) FROM plants WHERE account_id = '<conta de B>'` tem que dar 0. Isso testa a política, não só a UI.
+
+**5. Push (Fase 3.2).**
+Chromium headless não conclui a obtenção de token FCM, então valido em duas partes: (a) a server function `registerPushToken` é chamada com um token sintético autenticado, e confirmo com `SELECT * FROM push_subscriptions` no banco novo que a linha nasceu com o `account_id` e `user_id` certos, e que um segundo envio do mesmo token só atualiza `last_seen_at` (o `onConflict: fcm_token`); (b) abro `/settings/notifications` na UI e confirmo que a tela carrega, lê as preferências da tabela `accounts` do banco novo e salva timezone e hora. O envio real de push só é testável no domínio publicado.
+
+**6. Identificação Fase 1 sem regressão.**
+Subo uma foto de planta pelo fluxo `/plants/identify` logado, confirmo que voltam candidatos com nome científico, e verifico que nasceu uma linha em `ai_usage_log` com `provider='kindwise'`, `status='success'` e `credits_used=1` **no banco novo**. Testo também o caminho de erro com chave inválida, esperando a tela de erro traduzida com a opção de cadastro manual, sem travamento.
+
+**7. Zero resíduo do projeto antigo.**
+`rg -n "fbcvxqotiyqnlehxsebr|sb_publishable_LKXvXXGhbGcp8g4rbpZ0Vg_ZaKOrBBM"` em `src/`, `public/`, `supabase/`, `.env*`, `package.json` e nos arquivos de config do host — tem que retornar zero. Repito o mesmo grep no bundle de produção gerado (`dist/`), que é a prova que conta, porque pega qualquer valor embutido em build time pelo Vite. Complemento em runtime: capturo o log de rede do Playwright durante a sessão de QA e confirmo que nenhuma requisição sai para `fbcvxqotiyqnlehxsebr.supabase.co`.
+
+## O que preciso de você vs. o que consigo sozinho
+
+**Você fornece** (não tenho acesso ao projeto `umttqvgapxvcgtjkjeyn`): `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` do projeto novo, e os valores reutilizados `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY`, `GOOGLE_API_KEY`, `KINDWISE_API_KEY`. Também a decisão entre Caminho A e Caminho B.
+
+**Eu gero**: `LOVABLE_CRON_SECRET` novo. E consigo derivar `VITE_*` a partir dos valores que você passar (são os mesmos valores, outro nome).
+
+**Cuidado com a `FCM_PRIVATE_KEY`**: cole o valor com os `\n` literais preservados exatamente como estão hoje. Se o painel do host converter em quebras reais ou comer os escapes, a assinatura RS256 falha com erro de chave inválida — e o sintoma aparece só no primeiro envio de push, não no boot.
+
+## Risco mais provável
+
+O mais provável não é técnico, é de expectativa: **tentar reconectar este projeto e descobrir no meio que não dá**, perdendo tempo e possivelmente mexendo em secrets à toa. Mitigação: decidir Caminho A ou B antes de qualquer Build, e manter este projeto exatamente como está — com o Cloud ligado — até a Parte 3 fechar no ambiente novo.
+
+O segundo risco mais provável é a `FCM_PRIVATE_KEY` corrompida na transcrição, pelo motivo acima. Mitigação: validar a assinatura logo no início do QA, antes de dar a migração por concluída — eu testo o `fcm.server.ts` contra o Google OAuth e confirmo que a troca por access token passa.
+
+## Pendente para depois
+
+- Troca de `LOVABLE_API_KEY` por `@ai-sdk/google` (etapa separada, já planejada).
+- Push real e restrição de referrer da Firebase Web Key: só no domínio publicado.
+- Remoção do Lovable Cloud deste projeto: fora de escopo, e vale lembrar que ela não é o que libera o Supabase próprio — o que libera é o app rodando no ambiente novo.
