@@ -29,3 +29,7 @@ npm run dev
 - Tailwind CSS
 
 <!-- Atualizado em 23/08/2026. -->
+
+## Powered by AI
+
+Plantech's core plant identification features are powered by the **Kindwise Plant.id API v3**[span_1}(start_span)[span_1](end_span). We leverage Kindwise's accurate botanicalcomputer vision models securely on our server-side to provide fast, multi-tenant plant recognition and assist our users in sustainable garden management.
