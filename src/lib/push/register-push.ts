@@ -10,6 +10,54 @@ export type PushPermission = "granted" | "denied" | "default" | "unsupported";
 
 const TOKEN_STORAGE_KEY = "plantech.pushToken";
 
+/**
+ * Shared with `public/firebase-messaging-sw.js`: if foreground and background
+ * handlers ever fire for the same message, the browser replaces instead of
+ * duplicating the notification.
+ */
+const NOTIFICATION_TAG = "plantech-care-reminder";
+
+let foregroundListenerAttached = false;
+
+/**
+ * Foreground messages are NOT displayed by Chrome automatically — the SDK hands
+ * them to `onMessage` and the page must call `showNotification` itself.
+ */
+export async function startForegroundPushListener(): Promise<void> {
+  if (foregroundListenerAttached) return;
+  if (!isPushSupported() || Notification.permission !== "granted") return;
+  if (!getStoredToken()) return;
+  foregroundListenerAttached = true;
+
+  try {
+    const { getApps, getApp, initializeApp } = await import("firebase/app");
+    const { getMessaging, onMessage } = await import("firebase/messaging");
+    const config = getApps().length ? null : await resolveConfig();
+    const app = config ? initializeApp(config) : getApp();
+    const registration = await navigator.serviceWorker.ready;
+
+    onMessage(getMessaging(app), (payload) => {
+      const title = payload.notification?.title ?? payload.data?.["title"] ?? "Plantech";
+      const body = payload.notification?.body ?? payload.data?.["body"] ?? "";
+      const url =
+        (payload as { fcmOptions?: { link?: string } }).fcmOptions?.link ??
+        payload.data?.["url"] ??
+        "/tasks";
+
+      void registration.showNotification(title, {
+        body,
+        icon: "/icons/icon-192.png",
+        badge: "/icons/icon-192.png",
+        tag: payload.data?.["tag"] ?? NOTIFICATION_TAG,
+        data: { url },
+      });
+    });
+  } catch (error) {
+    foregroundListenerAttached = false;
+    console.error("[push] foreground listener failed", error);
+  }
+}
+
 /** Browser support check — Safari on iOS only exposes push inside an installed PWA. */
 export function isPushSupported(): boolean {
   return (
