@@ -20,6 +20,15 @@ const dictionaries = {
     "upload.invalidType": "Formato de imagem não suportado.",
     "upload.invalidSize": "Imagem muito grande.",
 
+    "badge.status.completed": "Concluído",
+    "badge.status.pending": "Pendente",
+    "badge.status.active": "Ativo",
+    "badge.status.inactive": "Inativo",
+    "badge.status.error": "Erro",
+    "badge.status.warning": "Atenção",
+    "badge.completion.completed": "Concluído",
+    "badge.completion.pending": "Pendente",
+
     "meta.root.title": "Plantech",
     "meta.root.description":
       "Plantech — cuidado de plantas, jardim e armário de produtos, multi-conta e mobile-first.",
@@ -352,6 +361,15 @@ const dictionaries = {
     "upload.invalidType": "Unsupported image format.",
     "upload.invalidSize": "Image is too large.",
 
+    "badge.status.completed": "Completed",
+    "badge.status.pending": "Pending",
+    "badge.status.active": "Active",
+    "badge.status.inactive": "Inactive",
+    "badge.status.error": "Error",
+    "badge.status.warning": "Warning",
+    "badge.completion.completed": "Completed",
+    "badge.completion.pending": "To Do",
+
     "meta.root.title": "Plantech",
     "meta.root.description":
       "Plantech — plant care, garden and product cabinet, multi-account and mobile-first.",
@@ -680,6 +698,15 @@ const dictionaries = {
     "upload.removePhoto": "Quitar foto",
     "upload.invalidType": "Formato de imagen no compatible.",
     "upload.invalidSize": "La imagen es demasiado grande.",
+
+    "badge.status.completed": "Completado",
+    "badge.status.pending": "Pendiente",
+    "badge.status.active": "Activo",
+    "badge.status.inactive": "Inactivo",
+    "badge.status.error": "Error",
+    "badge.status.warning": "Atención",
+    "badge.completion.completed": "Completado",
+    "badge.completion.pending": "Pendiente",
 
     "meta.root.title": "Plantech",
     "meta.root.description":
