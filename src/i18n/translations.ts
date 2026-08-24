@@ -154,6 +154,45 @@ const dictionaries = {
     "products.category.pesticide": "Defensivo",
     "products.category.tool": "Ferramenta",
     "products.category.other": "Outro",
+    "meta.productsLabel.title": "Ler rótulo por foto | Plantech",
+    "meta.productsLabel.description":
+      "Fotografe o rótulo do produto e revise os dados antes de salvar no seu armário.",
+    "productLabel.cta": "Ler rótulo por foto",
+    "productLabel.title": "Ler rótulo",
+    "productLabel.introTitle": "Fotografe o rótulo",
+    "productLabel.introBody":
+      "Uma foto nítida da frente já basta. Se quiser, adicione o verso com as instruções.",
+    "productLabel.addPhoto": "Tirar foto do rótulo",
+    "productLabel.addBack": "Adicionar verso",
+    "productLabel.removePhoto": "Remover foto",
+    "productLabel.frontAlt": "Foto da frente do rótulo",
+    "productLabel.backAlt": "Foto do verso do rótulo",
+    "productLabel.read": "Ler rótulo",
+    "productLabel.cancel": "Cancelar",
+    "productLabel.newPhoto": "Tentar com outra foto",
+    "productLabel.manualFallback": "Cadastrar manualmente",
+    "productLabel.uploading": "Enviando a foto...",
+    "productLabel.analyzing": "Lendo o rótulo...",
+    "productLabel.analyzingHint": "Isso costuma levar alguns segundos.",
+    "productLabel.fromLabel": "lido do rótulo",
+    "productLabel.reviewTitle": "Rascunho preenchido pela leitura",
+    "productLabel.reviewBody":
+      "Nada foi salvo ainda. Confira e corrija os campos antes de salvar o produto.",
+    "productLabel.fileType": "Use uma imagem JPG, PNG ou WebP.",
+    "productLabel.fileSize": "A imagem deve ter no máximo 8 MB.",
+    "productLabel.notLabel.title": "Isso não parece um rótulo",
+    "productLabel.notLabel.body":
+      "Não encontramos um rótulo de produto na foto. Tente enquadrar a embalagem.",
+    "productLabel.unreadable.title": "Rótulo ilegível",
+    "productLabel.unreadable.body":
+      "A foto está borrada ou escura demais. Aproxime, melhore a luz e tente de novo.",
+    "productLabel.providerError.title": "Não foi possível ler o rótulo",
+    "productLabel.providerError.body":
+      "A leitura por IA falhou. Você pode cadastrar o produto manualmente.",
+    "productLabel.providerError.retryBody":
+      "O serviço está instável agora. Tente novamente em instantes.",
+    "productLabel.uploadError.title": "Falha ao enviar a foto",
+    "productLabel.uploadError.body": "Verifique sua conexão e tente novamente.",
 
     "plants.title": "Plantas",
     "plants.new": "Nova planta",
@@ -613,6 +652,45 @@ const dictionaries = {
     "products.category.pesticide": "Pesticide",
     "products.category.tool": "Tool",
     "products.category.other": "Other",
+    "meta.productsLabel.title": "Read label from photo | Plantech",
+    "meta.productsLabel.description":
+      "Photograph the product label and review the data before saving it to your cabinet.",
+    "productLabel.cta": "Read label from photo",
+    "productLabel.title": "Read label",
+    "productLabel.introTitle": "Photograph the label",
+    "productLabel.introBody":
+      "One sharp photo of the front is enough. Add the back if it has the instructions.",
+    "productLabel.addPhoto": "Take a label photo",
+    "productLabel.addBack": "Add the back",
+    "productLabel.removePhoto": "Remove photo",
+    "productLabel.frontAlt": "Photo of the label front",
+    "productLabel.backAlt": "Photo of the label back",
+    "productLabel.read": "Read label",
+    "productLabel.cancel": "Cancel",
+    "productLabel.newPhoto": "Try another photo",
+    "productLabel.manualFallback": "Add manually",
+    "productLabel.uploading": "Uploading the photo...",
+    "productLabel.analyzing": "Reading the label...",
+    "productLabel.analyzingHint": "This usually takes a few seconds.",
+    "productLabel.fromLabel": "read from label",
+    "productLabel.reviewTitle": "Draft filled from the label",
+    "productLabel.reviewBody":
+      "Nothing has been saved yet. Check and fix the fields before saving the product.",
+    "productLabel.fileType": "Use a JPG, PNG or WebP image.",
+    "productLabel.fileSize": "The image must be 8 MB or smaller.",
+    "productLabel.notLabel.title": "This does not look like a label",
+    "productLabel.notLabel.body":
+      "We could not find a product label in the photo. Try framing the package.",
+    "productLabel.unreadable.title": "Label unreadable",
+    "productLabel.unreadable.body":
+      "The photo is too blurry or dark. Move closer, improve the light and try again.",
+    "productLabel.providerError.title": "Could not read the label",
+    "productLabel.providerError.body":
+      "The AI reading failed. You can still add the product manually.",
+    "productLabel.providerError.retryBody":
+      "The service is unstable right now. Please try again shortly.",
+    "productLabel.uploadError.title": "Photo upload failed",
+    "productLabel.uploadError.body": "Check your connection and try again.",
 
     "plants.title": "Plants",
     "plants.new": "New plant",
@@ -1071,6 +1149,45 @@ const dictionaries = {
     "products.category.pesticide": "Fitosanitario",
     "products.category.tool": "Herramienta",
     "products.category.other": "Otro",
+    "meta.productsLabel.title": "Leer etiqueta por foto | Plantech",
+    "meta.productsLabel.description":
+      "Fotografía la etiqueta del producto y revisa los datos antes de guardarlo en tu armario.",
+    "productLabel.cta": "Leer etiqueta por foto",
+    "productLabel.title": "Leer etiqueta",
+    "productLabel.introTitle": "Fotografía la etiqueta",
+    "productLabel.introBody":
+      "Basta una foto nítida del frente. Si quieres, añade el reverso con las instrucciones.",
+    "productLabel.addPhoto": "Tomar foto de la etiqueta",
+    "productLabel.addBack": "Añadir reverso",
+    "productLabel.removePhoto": "Quitar foto",
+    "productLabel.frontAlt": "Foto del frente de la etiqueta",
+    "productLabel.backAlt": "Foto del reverso de la etiqueta",
+    "productLabel.read": "Leer etiqueta",
+    "productLabel.cancel": "Cancelar",
+    "productLabel.newPhoto": "Probar con otra foto",
+    "productLabel.manualFallback": "Registrar manualmente",
+    "productLabel.uploading": "Subiendo la foto...",
+    "productLabel.analyzing": "Leyendo la etiqueta...",
+    "productLabel.analyzingHint": "Suele tardar unos segundos.",
+    "productLabel.fromLabel": "leído de la etiqueta",
+    "productLabel.reviewTitle": "Borrador rellenado por la lectura",
+    "productLabel.reviewBody":
+      "Todavía no se guardó nada. Revisa y corrige los campos antes de guardar el producto.",
+    "productLabel.fileType": "Usa una imagen JPG, PNG o WebP.",
+    "productLabel.fileSize": "La imagen debe pesar como máximo 8 MB.",
+    "productLabel.notLabel.title": "Esto no parece una etiqueta",
+    "productLabel.notLabel.body":
+      "No encontramos una etiqueta de producto en la foto. Intenta encuadrar el envase.",
+    "productLabel.unreadable.title": "Etiqueta ilegible",
+    "productLabel.unreadable.body":
+      "La foto está borrosa u oscura. Acércate, mejora la luz e inténtalo de nuevo.",
+    "productLabel.providerError.title": "No se pudo leer la etiqueta",
+    "productLabel.providerError.body":
+      "La lectura con IA falló. Puedes registrar el producto manualmente.",
+    "productLabel.providerError.retryBody":
+      "El servicio está inestable ahora. Inténtalo de nuevo en unos instantes.",
+    "productLabel.uploadError.title": "Error al subir la foto",
+    "productLabel.uploadError.body": "Revisa tu conexión e inténtalo de nuevo.",
 
     "plants.title": "Plantas",
     "plants.new": "Nueva planta",
