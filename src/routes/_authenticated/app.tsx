@@ -126,6 +126,19 @@ function AppShell() {
                 </span>
                 <ChevronRight className="size-4 text-muted-foreground" />
               </Link>
+              <Link
+                to="/settings/notifications"
+                className="flex items-center gap-3 rounded-xl border border-border p-4 transition-colors hover:bg-accent"
+              >
+                <BellRing className="size-5 text-primary" aria-hidden />
+                <span className="flex-1">
+                  <span className="block font-medium">{t("shell.notifications")}</span>
+                  <span className="block text-sm text-muted-foreground">
+                    {t("shell.notificationsDesc")}
+                  </span>
+                </span>
+                <ChevronRight className="size-4 text-muted-foreground" />
+              </Link>
             </section>
 
             <section>
