@@ -133,7 +133,15 @@ export async function sendPushToToken(
           notification: { title: message.title, body: message.body },
           ...(message.data ? { data: message.data } : {}),
           webpush: {
-            notification: { icon: "/icons/icon-192.png", badge: "/icons/icon-192.png" },
+            // High urgency + explicit TTL keeps delivery prompt on devices with
+            // aggressive battery saving, and drops the message after an hour
+            // instead of showing a stale reminder.
+            headers: { Urgency: "high", TTL: "3600" },
+            notification: {
+              icon: "/icons/icon-192.png",
+              badge: "/icons/icon-192.png",
+              tag: "plantech-care-reminder",
+            },
             fcmOptions: { link: message.link ?? "/tasks" },
           },
         },
