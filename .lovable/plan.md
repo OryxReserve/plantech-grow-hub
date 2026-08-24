@@ -6,7 +6,7 @@ Dividida em 3 sub-fases para reduzir risco. Cada uma é entregável e testável 
 - **3.2 — Infraestrutura de push (FCM) + preferências de notificação**
 - **3.3 — Cron diário + envio (push com fallback por e-mail)**
 
-Motivo do split: 3.1 não depende de credencial nenhuma e já entrega valor; 3.2 depende de você criar o projeto Firebase; 3.3 depende de 3.1 e 3.2 e de uma decisão de e-mail ainda em aberto (ver "Bloqueios").
+Motivo do split: 3.1 não depende de credencial nenhuma e já entrega valor; 3.2 depende de você criar o projeto Firebase; 3.3 depende de 3.1, de 3.2 e da verificação do domínio de e-mail.
 
 ---
 
@@ -111,21 +111,53 @@ Todas com `GRANT` explícito no mesmo migration.
 
 ---
 
-## Bloqueios / pontos que preciso confirmar antes do BUILD de 3.3
+## E-mail — decisão final: serviço gerenciado do Lovable Cloud
 
-**E-mail via SMTP da Hostinger não é viável neste projeto.** Dois motivos concretos:
+Confirmado. Hostinger SMTP fica descartada por um motivo técnico duro: o backend deste app roda em Cloudflare Workers, que **não abre socket TCP para portas SMTP** (465/587) — nenhuma lib de SMTP funciona ali, e a regra do projeto também impede criar Edge Function Deno nova só para isso. O serviço gerenciado é HTTP, sem chave nova, com bounce/supressão/rate limit resolvidos pela plataforma.
 
-1. O backend deste app **não é Edge Function Deno** — é TanStack Start rodando em Cloudflare Workers. Workers **não abrem conexão TCP para porta SMTP** (465/587). Não é limitação de biblioteca; não há socket SMTP disponível. Nenhuma lib de SMTP (nodemailer, denomailer) funciona ali.
-2. A regra do projeto é não criar novas Edge Functions — então "colocar o SMTP numa Edge Function Deno" também não é caminho (e, mesmo em Deno Deploy, SMTP direto é notoriamente instável e frequentemente bloqueado).
+### 1. Configurar o domínio remetente
 
-O que muda: apenas o **transporte**. A abstração que você pediu continua igual — `src/lib/email/email-provider.ts` (interface, espelhando `src/lib/ai/vision-provider.ts`), `src/lib/email/provider-registry.server.ts`, e um adaptador concreto. Templates HTML com os tokens do Plantech (verde sage, fundo neutro quente, sans-serif) em `src/lib/email/templates/`.
+Hoje **não há domínio de e-mail configurado** neste projeto (verificado). O fluxo é:
 
-Alternativas para o adaptador, em ordem de recomendação:
+1. Abrir o diálogo de configuração de e-mail (botão no fim desta conversa) e informar o domínio.
+2. O Lovable devolve um par de registros **NS** para um subdomínio delegado (ex.: `notify.seudominio.com`), apontando para `nsN.lovable.cloud`.
+3. Você adiciona esses NS no seu provedor de DNS.
+4. **Não é preciso criar SPF, DKIM, DMARC ou MX manualmente.** Com a delegação, o Lovable passa a gerenciar a zona daquele subdomínio e cria/renova todos esses registros sozinho. Esse é o motivo de a delegação ser por NS e não por CNAME/TXT.
+5. A propagação leva de minutos a 72h; o status fica visível em Cloud → Emails e há botão de re-verificar.
 
-1. **E-mail gerenciado do Lovable Cloud** — envio por HTTP, sem chave nova, com supressão/bounce/rate limit resolvidos. Exige apenas verificar um domínio seu (pode ser o mesmo da Hostinger, delegando um subdomínio como `notify.seudominio.com`). Zero código de SMTP.
-2. **Resend (ou outro provedor HTTP)** — API key própria, também compatível com Worker.
-3. **Manter a Hostinger** só faz sentido via um relay HTTP→SMTP intermediário; adiciona uma peça de infraestrutura sem ganho.
+Os valores exatos de NS são gerados por domínio — vou lê-los da tela/status no momento do BUILD, nunca de memória.
 
-Sobre os limites da Hostinger (~200/h, 2.400/dia): o batching/throttling do digest fica planejado de qualquer forma — um envio por conta por dia, em lotes com pausa, bem abaixo de qualquer teto.
+### 2. Subdomínio delegado é o caminho certo
 
-**Escolha o adaptador (1, 2 ou 3) e eu fecho o plano de 3.3.** As sub-fases 3.1 e 3.2 podem começar sem essa decisão.
+Sim: delegue um **subdomínio** (`notify.seudominio.com`) do domínio que você já usa, não um domínio novo. Três razões:
+
+- O domínio raiz continua intocado — o e-mail existente da Hostinger (caixas, MX) segue funcionando, porque a delegação afeta só a zona do subdomínio.
+- Um subdomínio dedicado a notificações isola a reputação de envio do seu e-mail pessoal/comercial.
+- Domínio separado exigiria comprar e aquecer reputação do zero, sem ganho.
+
+Onde adicionar os NS: no provedor que **hospeda o DNS** do domínio. Se o DNS está na Hostinger, é lá; se você já migrou para Cloudflare, é no Cloudflare. Atenção no Cloudflare: registro NS não pode ser proxied (não há nuvem laranja para NS — normal).
+
+### 3. Abstração `EmailProvider` — ajuste em relação ao plano anterior
+
+A ideia de provider trocável se mantém, mas a estrutura de arquivos muda para a do serviço gerenciado, que já traz um registry próprio:
+
+- `src/lib/email-templates/` — templates React Email (`.tsx`), um `template` exportado por arquivo.
+- `src/lib/email-templates/registry.ts` — registro dos templates.
+- `src/lib/email-templates/send-email.ts` — helper de envio (server-only), gerado pela plataforma.
+- `src/lib/email/care-reminder-email.server.ts` — **a nossa camada**: monta os dados do digest, escolhe idioma (pt/en/es pelo `profiles.preferred_language`) e chama o helper com `idempotencyKey` derivado da execução do cron. É esse arquivo que o cron importa; trocar de provedor no futuro significa reescrever só ele.
+
+Não vamos criar `email-provider.ts` + `provider-registry.server.ts` espelhando `src/lib/ai/`: ali a troca de provider era um requisito real (Kindwise/Lovable/LogoriOn), aqui seria uma indireção sobre um único provedor gerenciado. Se você preferir manter a simetria mesmo assim, é uma linha no BUILD — só me diga.
+
+### 4. Templates e tokens visuais
+
+Um template: `care-reminder`, com os tokens do Plantech (verde sage no CTA e nos acentos, tipografia sans-serif limpa, espaçamento generoso), assunto e preview text localizados. Uma ressalva de e-mail: o `Body` fica com fundo **branco** — é a regra do cliente de e-mail para não quebrar em dark mode; o neutro quente entra no container interno e nas faixas, não no fundo externo.
+
+Conteúdo: resumo do dia ("3 plantas precisam de água"), lista com apelido + tipo de cuidado, e um botão para `/tasks`. Um e-mail por conta por dia, nunca um por planta. Rodapé de descadastro é acrescentado pela plataforma — não escrevemos nada disso.
+
+### Ordem de execução
+
+1. **3.1** agora — sem nenhuma dependência de credencial.
+2. Em paralelo, você cria o projeto Firebase e inicia a verificação do domínio de e-mail.
+3. **3.2** quando as chaves do FCM estiverem prontas.
+4. **3.3** por último, com a migração de schema aplicada antes.
+
