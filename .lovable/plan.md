@@ -6,7 +6,7 @@ Dividida em 3 sub-fases para reduzir risco. Cada uma é entregável e testável 
 - **3.2 — Infraestrutura de push (FCM) + preferências de notificação**
 - **3.3 — Cron diário + envio (push com fallback por e-mail)**
 
-Motivo do split: 3.1 não depende de credencial nenhuma e já entrega valor; 3.2 depende de você criar o projeto Firebase; 3.3 depende de 3.1 e 3.2 e de uma decisão de e-mail ainda em aberto (ver "Bloqueios").
+Motivo do split: 3.1 não depende de credencial nenhuma e já entrega valor; 3.2 depende de você criar o projeto Firebase; 3.3 depende de 3.1, de 3.2 e da verificação do domínio de e-mail.
 
 ---
 
