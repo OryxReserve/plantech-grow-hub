@@ -16,9 +16,11 @@ export type StatusBadgeStatus =
 export interface StatusBadgeProps {
   status: StatusBadgeStatus;
   className?: string;
+  /** Optional label override. When omitted, the default translated status label is used. */
+  label?: string;
 }
 
-const STATUS_ICON: Record<StatusBadgeStatus, typeof CheckCircle2> = {
+export const STATUS_ICON: Record<StatusBadgeStatus, typeof CheckCircle2> = {
   completed: CheckCircle2,
   pending: Circle,
   active: CheckCircle2,
@@ -27,7 +29,7 @@ const STATUS_ICON: Record<StatusBadgeStatus, typeof CheckCircle2> = {
   warning: AlertCircle,
 };
 
-const STATUS_CLASS: Record<StatusBadgeStatus, string> = {
+export const STATUS_CLASS: Record<StatusBadgeStatus, string> = {
   completed: "bg-primary text-primary-foreground",
   pending: "bg-muted text-muted-foreground",
   active: "bg-primary text-primary-foreground",
@@ -45,7 +47,7 @@ const STATUS_LABEL: Record<StatusBadgeStatus, TranslationKey> = {
   warning: "badge.status.warning",
 };
 
-export function StatusBadge({ status, className }: StatusBadgeProps) {
+export function StatusBadge({ status, className, label }: StatusBadgeProps) {
   const { t } = useI18n();
   const Icon = STATUS_ICON[status];
 
@@ -58,7 +60,7 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
       )}
     >
       <Icon className="size-3.5" aria-hidden="true" />
-      {t(STATUS_LABEL[status])}
+      {label ?? t(STATUS_LABEL[status])}
     </Badge>
   );
 }

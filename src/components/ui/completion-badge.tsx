@@ -17,8 +17,8 @@ const COMPLETION_LABEL: Record<CompletionStatus, TranslationKey> = {
 
 /**
  * Thin wrapper around StatusBadge for checklist items.
- * Uses checklist-specific translation keys while reusing the same
- * visual tokens and iconography as StatusBadge's completed/pending variants.
+ * Reuses the same visual tokens and iconography as StatusBadge's
+ * completed/pending variants, but renders checklist-specific labels.
  */
 export function CompletionBadge({ status, className }: CompletionBadgeProps) {
   const { t } = useI18n();
@@ -26,13 +26,8 @@ export function CompletionBadge({ status, className }: CompletionBadgeProps) {
   return (
     <StatusBadge
       status={status}
-      className={cn(
-        // The visible label is overridden by the child span so that checklist
-        // items can read "To Do" in English instead of the generic "Pending".
-        className,
-      )}
-    >
-      <span className="sr-only">{t(COMPLETION_LABEL[status])}</span>
-    </StatusBadge>
+      className={cn(className)}
+      label={t(COMPLETION_LABEL[status])}
+    />
   );
 }
