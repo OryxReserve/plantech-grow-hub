@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { CompletionBadge } from "@/components/ui/completion-badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { useI18n } from "@/i18n/i18n";
 import { headTranslate } from "@/i18n/translations";
 
