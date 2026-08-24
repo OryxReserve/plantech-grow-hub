@@ -1,56 +1,55 @@
-# Fase 3.3 — Republicar, validar o cron e fechar o QA
+# QA Fase 3.3 — Bloco A: idempotência, conta sem tarefas e integridade de log
 
-## Situação atual (verificada agora)
+## O que verifiquei agora (estado real)
 
-- O job `daily-care-check` existe, está ativo, roda `5 * * * *` e envia o header `x-cron-secret`.
-- O valor no comando do job **é igual** ao valor atual em `cron_secrets.care_reminders` — não precisa recriar o job por causa do segredo.
-- As duas últimas chamadas HTTP do cron responderam **401** (`{"error":"Unauthorized"}`) — a última às 14:05 UTC. Confirma o diagnóstico: a URL de produção ainda roda a versão antiga da rota, que só aceitava `LOVABLE_CRON_SECRET`.
-- `reminder_run_log` tem 6 linhas, a última em 12:53 UTC (execuções manuais) — nenhuma vinda do cron, coerente com o 401.
+- Só existe **um** token de push no banco: conta `fffbe247…` (Rogerio Correa), 1 token. Todas as outras contas têm 0 tokens — nenhum teste de entrega real é possível fora do seu aparelho.
+- Nessa conta, a única planta com intervalo é o **Manjericão** (rega a cada 1 dia, sem log de rega e sem `last_watered_at`) — ou seja, sempre vencida. As outras 6 plantas não têm intervalo.
+- `care_reminder_sent` está **vazia** (0 linhas). Nenhum dia foi marcado ainda.
+- `reminder_run_log` tem 10+ linhas; os ciclos automáticos recentes (15:05, 15:11–15:13, 16:05) gravaram `accounts_considered: 0`, `push_sent: 0`, com `started_at`/`finished_at` preenchidos e `error` nulo.
+- Contas candidatas a "sem tarefas": `024ba742…` (Teste Planta, 1 planta, 0 perfis com intervalo) e `39504b73…` (Foto Tester, mesma situação). Ambas são contas de teste antigas, não são a sua conta real.
 
-Detalhe importante: o segredo está **literal** dentro do comando do job (não lido de `cron_secrets` em tempo de execução). Funciona hoje, mas se o segredo for rotacionado o job quebra silenciosamente.
+## Ponto que muda o Teste 1 (importante)
 
-## Passo 1 — Publicar
+Lendo o código do job: o disparo **manual** com `accountId` entra por um caminho que ignora completamente `care_reminder_sent` — ele só monta a conta alvo e envia. A deduplicação diária acontece exclusivamente dentro de `list_accounts_due_for_reminder()`, que exclui contas que já têm linha do dia.
 
-Publicar o projeto para que a produção passe a rodar a rota que aceita `x-cron-secret` validado contra `cron_secrets`.
+Consequência: dois disparos manuais seguidos **vão** enviar dois pushes. Isso não prova falha de idempotência — prova apenas que o caminho manual é, por desenho, um bypass. O teste correto para idempotência é pelo caminho do cron (sem `accountId`).
 
-## Passo 2 — Confirmar a versão publicada
+## Teste 1 — Idempotência por conta + dia local (via caminho do cron)
 
-Chamada `POST` à rota de produção com o header correto e `{"accountId": "<conta de QA>", "dryRunDedupe": true}`, esperando `200` com o resumo em JSON (sem 401).
+Como executar, sem enviar push repetido para o seu aparelho:
 
-## Passo 3 — Ajustar o job para ler o segredo em tempo de execução
+1. Snapshot: `select * from care_reminder_sent where account_id = 'fffbe247…'` (hoje: zero linhas) e a última linha de `reminder_run_log`.
+2. Um único disparo real, sem `accountId` e sem `dryRunDedupe`, com a conta temporariamente elegível pelo horário: ajusto `accounts.reminder_hour` da conta para a hora UTC corrente (a conta está em `UTC`), disparo o hook, e depois **restauro `reminder_hour` para 9**. Isso não toca em plantas, perfis nem logs de cuidado.
+   - Resultado esperado: `accountsConsidered: 1`, `pushSent: 1`, **1 push no aparelho**, e 1 linha nova em `care_reminder_sent` com `local_date` de hoje.
+3. Segundo disparo imediato, idêntico: `list_accounts_due_for_reminder()` deve agora excluir a conta → `accountsConsidered: 0`, `pushSent: 0`, **nenhum push novo**, e `care_reminder_sent` continua com exatamente 1 linha.
+4. Evidência reportada: as duas respostas JSON, `count(*)` antes/depois e a linha de dedupe (`task_count`, `delivered_count`).
 
-Recriar o job com o header montado a partir da tabela, para eliminar o segredo literal:
+Ruído no aparelho: exatamente **1 notificação**, no passo 2. Confirmo com você antes de disparar.
 
-```text
-headers := jsonb_build_object(
-  'Content-Type','application/json',
-  'x-cron-secret',(select secret from cron_secrets where name='care_reminders')
-)
-```
+Se preferir zero notificação, faço a mesma prova removendo temporariamente o token de push da conta — mas aí `delivered = 0` e a linha de dedupe não é escrita (por desenho), então o teste vira "dedupe por RPC" apenas, checando o retorno de `list_accounts_due_for_reminder()` com e sem linha em `care_reminder_sent`.
 
-Mesmo nome (`daily-care-check`) e mesmo schedule (`5 * * * *`).
+## Teste 2 — Conta sem tarefas elegíveis
 
-## Passo 4 — Aguardar a execução real
+Uso `024ba742…` (Teste Planta): 1 planta, nenhum perfil com intervalo, 0 tokens. Nada é criado nem alterado.
 
-Esperar o minuto 5 da próxima hora e reportar, a partir de `net._http_response`, `cron.job_run_details` e `reminder_run_log`:
-- status HTTP da chamada (esperado 200, não 401);
-- quantas contas `list_accounts_due_for_reminder()` retornou naquele ciclo;
-- push enviados / falhados na linha correspondente do log.
+- Disparo manual com `{"accountId":"024ba742…"}`.
+- Esperado: `accountsConsidered: 1`, `accountsNotified: 0`, `pushSent: 0`, `pushFailed: 0`, `accounts: []` (o loop faz `continue` antes de notificar).
+- Prova complementar: `select count(*) from care_reminder_sent where account_id='024ba742…'` = 0 antes e depois.
+- Zero push (a conta não tem token) — nenhum ruído no seu aparelho.
 
-Sem esse número concreto a fase não é considerada fechada.
+## Teste 3 — Integridade e observabilidade do log
 
-## Passo 5 — Checklist de QA
-
-1. **Idempotência**: dois disparos manuais no mesmo dia local para a mesma conta (sem `dryRunDedupe`); o segundo não deve enviar nem criar nova linha em `care_reminder_sent`. Evidência: contagem de linhas antes/depois + `delivered` do segundo disparo.
-2. **Fuso horário**: criar conta de QA em `America/Sao_Paulo` com `reminder_hour` que bate com o horário local dela e outra em `Europe/Madrid` fora da hora; verificar quem `list_accounts_due_for_reminder()` retorna em cada hora.
-3. **Conta sem tarefas**: conta com plantas sem intervalo configurado — confirmar zero envio e zero linha em `care_reminder_sent`.
-4. **Token morto**: inserir um `fcm_token` inválido em `push_subscriptions` para a conta de QA, disparar e confirmar que a linha some (`staleTokensRemoved` > 0) e que o token válido continua.
-5. **Múltiplos dispositivos**: com 2 tokens na conta (um real + um inválido, ou dois reais), confirmar `tokens: 2` e envio para todos.
-6. **Foreground vs background**: dois disparos reais no seu aparelho — app aberto (`onMessage`) e app minimizado (`onBackgroundMessage`) — confirmando exibição nos dois casos e sem duplicar (mesma `tag`).
-7. **reminder_run_log**: confirmar que cada execução grava linha mesmo com zero contas due (verificar após um ciclo de cron em hora sem contas elegíveis).
-
-Itens 1–5 e 7 eu executo e reporto com números; o item 6 depende da sua confirmação visual no aparelho.
+- **Ciclo vazio**: comparo `count(*)` de `reminder_run_log` antes/depois do disparo do Teste 2 e mostro a linha nova: `started_at` < `finished_at`, `error` nulo, contadores todos 0 e `triggered_manually: true`.
+- **Ciclo com entrega**: a linha gerada no passo 2 do Teste 1 deve trazer `accounts_considered: 1`, `accounts_notified: 1`, `push_sent: 1`, `push_failed: 0`, `stale_tokens_removed: 0`, `triggered_manually: false`.
+- **Ciclo automático**: reporto também a linha do cron das :05 mais próxima, para mostrar que ciclos sem contas elegíveis continuam gravando uma única linha coerente.
 
 ## Limpeza ao final
 
-Remover contas/plantas/tokens criados só para o QA, mantendo o Manjericão com rega de 1 dia como combinado.
+- `reminder_hour` da conta real restaurado para `9`.
+- Linha de `care_reminder_sent` criada no teste removida (chave `account_id` + `local_date` de hoje), para não bloquear o lembrete real de amanhã… na prática ela é de hoje, então removo só se você quiser receber o lembrete de hoje novamente; caso contrário deixo, é o comportamento normal.
+- Nada mais é criado: sem contas novas, sem plantas novas, sem tokens novos. Linhas de `reminder_run_log` são histórico e ficam.
+
+## Confirmação que preciso de você
+
+1. Autorizo 1 push real no aparelho no Teste 1 (ou prefere a variante sem push)?
+2. Devo apagar a linha de `care_reminder_sent` do dia ao final?
