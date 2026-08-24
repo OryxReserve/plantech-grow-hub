@@ -44,6 +44,10 @@ export type AiUsageLogEntry = {
     language?: string;
     scientific_name?: string;
     cache_miss?: boolean;
+    /** Product label reading. Never stores label text. */
+    is_label?: boolean;
+    unreadable?: boolean;
+    fields_extracted?: number;
   };
 };
 
