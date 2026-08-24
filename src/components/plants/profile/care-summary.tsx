@@ -125,6 +125,6 @@ export function CareSummary({ profile }: { profile: PlantCareProfileRow | null }
           ]}
         </Section>
       </TabsContent>
-    </Tabs>
+    </SegmentedTabs>
   );
 }
