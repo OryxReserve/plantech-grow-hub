@@ -166,6 +166,41 @@ export type Database = {
           },
         ]
       }
+      care_reminder_sent: {
+        Row: {
+          account_id: string
+          created_at: string
+          delivered_count: number
+          id: string
+          local_date: string
+          task_count: number
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          delivered_count?: number
+          id?: string
+          local_date: string
+          task_count?: number
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          delivered_count?: number
+          id?: string
+          local_date?: string
+          task_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "care_reminder_sent_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plant_care_log: {
         Row: {
           account_id: string
@@ -535,6 +570,48 @@ export type Database = {
           },
         ]
       }
+      reminder_run_log: {
+        Row: {
+          accounts_considered: number
+          accounts_notified: number
+          created_at: string
+          error: string | null
+          finished_at: string | null
+          id: string
+          push_failed: number
+          push_sent: number
+          stale_tokens_removed: number
+          started_at: string
+          triggered_manually: boolean
+        }
+        Insert: {
+          accounts_considered?: number
+          accounts_notified?: number
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          push_failed?: number
+          push_sent?: number
+          stale_tokens_removed?: number
+          started_at?: string
+          triggered_manually?: boolean
+        }
+        Update: {
+          accounts_considered?: number
+          accounts_notified?: number
+          created_at?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          push_failed?: number
+          push_sent?: number
+          stale_tokens_removed?: number
+          started_at?: string
+          triggered_manually?: boolean
+        }
+        Relationships: []
+      }
       species_care_guide: {
         Row: {
           created_at: string
@@ -598,6 +675,14 @@ export type Database = {
       }
       is_account_member: { Args: { _account_id: string }; Returns: boolean }
       is_platform_admin: { Args: { _user_id: string }; Returns: boolean }
+      list_accounts_due_for_reminder: {
+        Args: never
+        Returns: {
+          account_id: string
+          local_date: string
+          timezone: string
+        }[]
+      }
     }
     Enums: {
       account_member_role: "owner" | "admin" | "member"
