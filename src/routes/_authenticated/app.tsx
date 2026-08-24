@@ -29,9 +29,6 @@ function AppShell() {
   } = useActiveAccount();
 
 
-  const sections: { key: TranslationKey; desc: TranslationKey; icon: typeof Leaf }[] = [
-    { key: "shell.products", desc: "shell.productsDesc", icon: Package },
-  ];
 
   return (
     <div>
