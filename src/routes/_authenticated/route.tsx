@@ -16,6 +16,7 @@ export const Route = createFileRoute("/_authenticated")({
   component: () => (
     <ActiveAccountProvider>
       <ProfileLocaleSync />
+      <ForegroundPushListener />
       <div className="min-h-screen bg-background">
         <AppHeader />
         <Outlet />
