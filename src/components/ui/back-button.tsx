@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export interface BackButtonProps {
-  /** Visible label and accessible name. */
+  /** Visible label. */
   label: string;
+  /** Accessible name when it should be more descriptive than the label. */
+  ariaLabel?: string;
   /** Route to navigate to. When omitted, `onClick` handles the navigation. */
   to?: NonNullable<LinkProps["to"]>;
   params?: LinkProps["params"];
@@ -26,6 +28,7 @@ export interface BackButtonProps {
  */
 export function BackButton({
   label,
+  ariaLabel,
   to,
   params,
   search,
@@ -78,7 +81,7 @@ export function BackButton({
           to={to}
           {...(params === undefined ? {} : { params })}
           {...(search === undefined ? {} : { search })}
-          aria-label={label}
+          aria-label={ariaLabel ?? label}
         >
           {content}
         </Link>
@@ -91,7 +94,7 @@ export function BackButton({
       type="button"
       variant={variant}
       className={classes}
-      aria-label={label}
+      aria-label={ariaLabel ?? label}
       {...(onClick ? { onClick } : {})}
     >
       {content}
