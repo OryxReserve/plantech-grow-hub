@@ -155,29 +155,6 @@ function AppShell() {
 
             </section>
 
-            <section>
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("shell.next")}
-              </h2>
-              <div className="grid gap-3">
-
-                {sections.map(({ key, desc, icon: Icon }) => (
-                  <div
-                    key={key}
-                    className="flex items-start gap-3 rounded-xl border border-border p-4"
-                  >
-                    <Icon className="mt-0.5 size-5 text-primary" aria-hidden />
-                    <div className="flex-1">
-                      <p className="font-medium">{t(key)}</p>
-                      <p className="text-sm text-muted-foreground">{t(desc)}</p>
-                    </div>
-                    <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
-                      {t("shell.soon")}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </section>
           </>
         )}
       </main>
