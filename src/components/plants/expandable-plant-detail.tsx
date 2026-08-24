@@ -38,8 +38,8 @@ export function ExpandablePlantDetail({
 }: ExpandablePlantDetailProps) {
   const { t } = useI18n();
   const { open, setOpen } = useExpandableCard({
-    open: controlledOpen,
-    onOpenChange,
+    ...(controlledOpen === undefined ? {} : { open: controlledOpen }),
+    ...(onOpenChange ? { onOpenChange } : {}),
   });
 
   return (

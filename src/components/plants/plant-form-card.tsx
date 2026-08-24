@@ -58,8 +58,8 @@ export function PlantFormCard({
       >
       <FormCardHeader
         title={title}
-        subtitle={subtitle}
-        media={media}
+        {...(subtitle === undefined ? {} : { subtitle })}
+        {...(media === undefined ? {} : { media })}
         animate={animate}
       />
 
@@ -69,8 +69,8 @@ export function PlantFormCard({
             label={photoUpload.label}
             photos={photoUpload.photos}
             onChange={photoUpload.onChange}
-            max={photoUpload.max}
-            disabled={isSubmitting}
+            {...(photoUpload.max === undefined ? {} : { max: photoUpload.max })}
+            {...(isSubmitting === undefined ? {} : { disabled: isSubmitting })}
           />
         </FormCardRow>
       ) : null}

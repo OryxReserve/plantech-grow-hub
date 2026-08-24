@@ -62,10 +62,10 @@ export function ExpandableCard({
   return (
     <motion.button
       type="button"
-      layoutId={reduce ? undefined : `expandable-card-${layoutId}`}
+      {...(reduce ? {} : { layoutId: `expandable-card-${layoutId}` })}
       data-expandable-trigger={layoutId}
       aria-expanded={open}
-      aria-label={label}
+      {...(label ? { "aria-label": label } : {})}
       onClick={() => onOpenChange(true)}
       className={cn(
         "block w-full rounded-[var(--radius)] border border-border bg-card p-4 text-left transition-colors hover:bg-accent",
@@ -140,13 +140,16 @@ export function ExpandableCardContent({
           />
 
           <motion.div
-            layoutId={reduce ? undefined : `expandable-card-${layoutId}`}
+            {...(reduce
+              ? {
+                  initial: { opacity: 0 },
+                  animate: { opacity: 1 },
+                  exit: { opacity: 0 },
+                }
+              : { layoutId: `expandable-card-${layoutId}` })}
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
-            initial={reduce ? { opacity: 0 } : undefined}
-            animate={reduce ? { opacity: 1 } : undefined}
-            exit={reduce ? { opacity: 0 } : undefined}
             transition={{ type: "spring", stiffness: 320, damping: 32 }}
             className={cn(
               "relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl border border-border bg-card shadow-lg",
@@ -159,7 +162,7 @@ export function ExpandableCardContent({
               type="button"
               onClick={() => onOpenChange(false)}
               aria-label={closeLabel}
-              whileHover={reduce ? undefined : { rotate: 90 }}
+              {...(reduce ? {} : { whileHover: { rotate: 90 } })}
               transition={{ duration: 0.2 }}
               className="absolute right-3 top-3 z-10 flex size-10 items-center justify-center rounded-full border border-border bg-background/80 text-muted-foreground backdrop-blur transition-colors hover:text-foreground"
             >
