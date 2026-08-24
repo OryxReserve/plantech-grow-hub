@@ -1,7 +1,8 @@
 import { Droplets, Leaf, Sun } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SegmentedTabs } from "@/components/ui/segmented-tabs";
+import { TabsContent } from "@/components/ui/tabs";
 import { useI18n } from "@/i18n/i18n";
 import { LIGHT_LABEL } from "@/components/plants/profile/care-profile-sheet";
 import { isLightExposure, type PlantCareProfileRow } from "@/lib/plant-care-profile";
