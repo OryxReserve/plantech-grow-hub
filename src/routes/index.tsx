@@ -39,6 +39,17 @@ function Landing() {
         >
           {t("landing.cta")}
         </Link>
+
+        <div className="mt-8 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-4">
+          <StatusBadge status="completed" />
+          <StatusBadge status="pending" />
+          <StatusBadge status="active" />
+          <StatusBadge status="inactive" />
+          <StatusBadge status="error" />
+          <StatusBadge status="warning" />
+          <CompletionBadge status="completed" />
+          <CompletionBadge status="pending" />
+        </div>
       </div>
     </main>
   );
