@@ -1,71 +1,87 @@
-# QA Fase 3.3 — Bloco C: validação visual de push (foreground e background)
+# Fase 4.1 — Produtos e Insumos (cadastro manual)
 
-Bloco A permanece encerrado e intocado: a linha de `care_reminder_sent` de hoje não será apagada nem recriada, e `reminder_hour` não será alterado em nenhum momento deste bloco.
+Seção "Produtos" para registrar o estoque de adubos, fertilizantes e insumos da conta. Sem IA, sem foto de rótulo, sem recomendação, sem pagamentos.
 
-## 1. Como disparar push de teste sem tocar no dedupe de hoje
+## 1. Schema atual de `products` (verificado)
 
-Chamada única, sempre com os dois parâmetros:
+Colunas hoje:
 
-```
-POST https://plantech-grow-hub.lovable.app/api/public/hooks/care-reminders
-x-cron-secret: <lido de cron_secrets em tempo de execução>
-{ "accountId": "fffbe247-7d96-45eb-be28-d7fdf0a4a6cb", "dryRunDedupe": true }
-```
+| Coluna | Tipo | Nulo | Default |
+| --- | --- | --- | --- |
+| id | uuid | não | gen_random_uuid() |
+| account_id | uuid | não | — |
+| created_by | uuid | sim | — |
+| name | text | não | — |
+| category | text | sim | — |
+| brand | text | sim | — |
+| quantity | numeric | sim | — |
+| unit | text | sim | — |
+| notes | text | sim | — |
+| created_at | timestamptz | não | now() |
+| updated_at | timestamptz | não | now() |
 
-Por que isso é seguro, confirmado no código de `care-reminders.server.ts`:
+RLS já ativa e correta, 4 políticas para `authenticated`, todas via `is_account_member(account_id)` (SELECT/UPDATE/DELETE em `qual`, INSERT/UPDATE em `with_check`). Trigger `trg_products_updated_at` já mantém `updated_at`. Isolamento por conta já garantido — nada muda aqui.
 
-- Com `accountId` informado, o job ignora a janela de horário local e a checagem de dedupe existente — por isso o `reminder_hour` continua em 9 e a linha de hoje não bloqueia o disparo.
-- A gravação em `care_reminder_sent` acontece somente quando `!dryRunDedupe && delivered > 0`. Com `dryRunDedupe: true`, o push é real mas **nenhuma linha é escrita, atualizada ou apagada**.
-- Nenhum caminho do job faz `delete` ou `update` em `care_reminder_sent`. A linha de 24/08 fica exatamente como está.
+Já suportam o cadastro manual: nome, marca, categoria, quantidade, unidade, observações.
 
-Efeito colateral esperado e aceito: cada disparo grava 1 linha em `reminder_run_log` (histórico, preservado).
+Faltam (migração aditiva, sem tocar em `account_id` nem em RLS):
 
-## 2. O Manjericão é suficiente?
+- `is_archived boolean not null default false` — arquivamento em vez de exclusão física
+- `npk text` — texto validado no app no formato `N-P-K` (ex.: `10-10-10`)
+- `description text` — descrição/uso
+- `expires_at date` — validade opcional
+- Constraints: `quantity >= 0`; `npk` com CHECK de formato (`^\d{1,2}(\.\d)?-\d{1,2}(\.\d)?-\d{1,2}(\.\d)?$`) permitindo NULL
+- Índice: `(account_id, is_archived, created_at desc)` para a listagem
 
-Sim. Confirmado no estado atual: a conta `fffbe247…` tem o Manjericão com intervalo de rega diário e sem registro de rega, portanto permanentemente vencido, e é a única conta com token de push válido (1 token). O job monta o título/corpo a partir dos nomes das plantas vencidas e do total de tarefas — exatamente o que já produziu `taskCount: 1, plantNames: ["Manjericão"]` nas execuções anteriores.
+Sem novos GRANTs (tabela já existente e já concedida).
 
-Nada será alterado: nem planta, nem perfil de cuidado, nem intervalo, nem `reminder_hour`, nem log de cuidado. Nenhum dado de QA será criado para este bloco.
+## 2. Fluxo de interface
 
-## 3. Teste foreground (1 notificação)
+Navegação: o card "Produtos" hoje está em `/app` na seção "Em breve" com badge `soon`. Ele passa a ser um link ativo para `/products`, no mesmo grupo dos links Plantas/Tarefas/Notificações, com o ícone `Package` já usado.
 
-1. Você abre o Plantech no Chrome do Android, deixa a aba **visível e em primeiro plano** (idealmente na tela de Tarefas) e me avisa.
-2. Eu aguardo essa confirmação — não disparo antes.
-3. Eu executo **exatamente 1** chamada com `accountId` + `dryRunDedupe: true`.
-4. Você confirma visualmente se a notificação apareceu (bandeja/heads-up) e se o conteúdo cita o Manjericão.
-5. Eu registro da resposta: `tokens`, `delivered`, `pushFailed`, `staleTokensRemoved`, `taskCount`, `plantNames`, e a linha correspondente de `reminder_run_log`.
+Telas (todas usando o padrão existente `PlantScreen`-like, renomeado/reutilizado como chrome mobile-first, e `FormCard`/`PlantFormCard`):
 
-Evidência do handler: em foreground o Chrome **não** exibe nada sozinho — quem exibe é `startForegroundPushListener`, que chama `registration.showNotification` com a tag `plantech-care-reminder`. Não há log server-side desse handler; a evidência é a notificação aparecer com `delivered: 1`. Se quiser evidência textual, no console do Chrome (chrome://inspect ou DevTools remoto) pode verificar ausência de `[push] foreground listener failed`. Isso é opcional e feito por você — não tenho acesso ao console do seu aparelho.
+- `/products` — lista. Header com título e botão "+" de ação. Cada item é uma linha compacta: nome + marca, chip de categoria, quantidade+unidade à direita, e badge discreto de validade quando vencida/próxima. Filtro segmentado (`SegmentedTabs`, já existe) com "Ativos" / "Arquivados".
+- Vazio: bloco ilustrado com ícone, frase curta e CTA "Adicionar produto" — não é card stacking genérico, segue o padrão das telas de plantas.
+- Carregando: skeletons de linha. Erro: mensagem inline com botão "Tentar novamente".
+- `/products/new` e `/products/$productId/edit` — mesmo formulário, campos: nome (obrigatório), marca, categoria (select: adubo, fertilizante, substrato, defensivo, ferramenta, outro), NPK, descrição/uso, quantidade + unidade (select: g, kg, ml, L, un), validade, observações.
+- Detalhe: nesta subetapa o item da lista abre direto a edição (mantém o app enxuto); arquivamento e exclusão ficam no rodapé do formulário.
+- Arquivar/desarquivar: ação primária. Exclusão física existe, mas atrás de `AlertDialog` de confirmação com texto explícito.
+- Toasts `sonner` para sucesso/erro, como no restante do app.
 
-## 4. Teste background (1 notificação)
+Todo o texto entra em `translations.ts` nos três idiomas (pt/en/es).
 
-1. Você minimiza o Chrome ou troca de app, deixando o Plantech em segundo plano, e me avisa.
-2. Eu aguardo a confirmação.
-3. Eu executo **exatamente 1** chamada idêntica à do passo anterior.
-4. Você confirma visualmente o aparecimento da notificação e, opcionalmente, que tocá-la abre `/tasks` (comportamento de `notificationclick`).
-5. Eu registro os mesmos contadores e a linha de `reminder_run_log`.
+## 3. Regras de negócio
 
-Evidência do worker: quem exibe é `onBackgroundMessage` em `public/firebase-messaging-sw.js`, também com a tag `plantech-care-reminder`. Logs do service worker ficam no dispositivo; a evidência prática é a notificação exibida com o ícone/badge do app e o clique abrindo `/tasks`.
+- Todo produto pertence a `account_id` (o `activeAccountId` do contexto); `created_by` é apenas auditoria.
+- Leitura/escrita somente por membros ativos da conta — já garantido pelas políticas existentes.
+- Validações no cliente: nome obrigatório (1–120), quantidade numérica ≥ 0 e opcional, NPK no formato `N-P-K` quando preenchido, validade sendo data válida (permite passado, mas exibe badge "vencido").
+- Produtos arquivados são excluídos da listagem padrão; visíveis no filtro "Arquivados" e restauráveis.
+- Nenhuma IA, nenhuma recomendação, nenhuma ligação com plantas nesta subetapa.
 
-## 5. Como confirmar que não houve duplicação
+## 4. Blocos de implementação
 
-O payload já leva `webpush.notification.tag = "plantech-care-reminder"` e ambos os handlers usam a mesma tag ao chamar `showNotification`. Consequência: mesmo que o navegador exiba a notificação nativa e o handler chame `showNotification`, o sistema **substitui** em vez de empilhar, porque a tag é idêntica.
+**Bloco A — Schema/RLS (migração)**
+Adiciona `is_archived`, `npk`, `description`, `expires_at`, CHECKs e índice. RLS e `account_id` intocados.
 
-Verificação em cada cenário:
-- Contar as notificações visíveis na bandeja logo após o disparo: deve haver **exatamente 1** item do Plantech.
-- Confirmar que a resposta trouxe `tokens: 1` e `delivered: 1` — um único envio, um único token.
-- Após o segundo teste (background), a bandeja deve continuar com 1 item do Plantech (o novo substitui o anterior pela tag), e não 2 acumulados. Se você tiver descartado o primeiro, basta observar que só existe 1.
+**Bloco B — Camada de dados**
+`src/lib/products.ts`: chaves de query escopadas por conta, `productsListQuery(accountId, { archived })`, `productDetailQuery`, `createProduct`, `updateProduct`, `setProductArchived`, `deleteProduct` — sempre com `.eq("account_id", accountId)`, espelhando `src/lib/plants.ts`.
 
-## 6. Limite de ruído
+**Bloco C — Listagem**
+`src/routes/_authenticated/products.index.tsx` + `src/components/products/product-list-item.tsx` + estados vazio/carregando/erro. Ativa o link em `src/routes/_authenticated/app.tsx`.
 
-No máximo **2 notificações** no total: uma no teste foreground e uma no background. Cada disparo só acontece após sua confirmação explícita de que o app está no estado certo. Nenhum disparo extra, nenhum reteste sem você pedir.
+**Bloco D — Formulário**
+`src/components/products/product-form.tsx` sobre `PlantFormCard`/`FormCard`, mais `products.new.tsx` e `products.$productId.edit.tsx`, incluindo arquivar/restaurar e diálogo de exclusão.
 
-## Resumo do que será tocado
+**Bloco E — i18n e QA**
+Chaves pt/en/es; `head()` próprio em cada rota nova.
 
-| Item | Ação |
-|---|---|
-| `care_reminder_sent` | Nenhuma escrita, nenhuma leitura destrutiva — linha de hoje intacta |
-| `accounts.reminder_hour` | Não alterado |
-| Plantas, perfis, logs de cuidado | Não alterados |
-| `push_subscriptions` | Só leitura; nenhum token sintético neste bloco |
-| `reminder_run_log` | 2 linhas novas (histórico normal) |
-| Código, cron, FCM, RLS | Nenhuma alteração |
+Arquivos criados: `src/lib/products.ts`, `src/components/products/product-form.tsx`, `src/components/products/product-list-item.tsx`, `src/routes/_authenticated/products.index.tsx`, `products.new.tsx`, `products.$productId.edit.tsx`.
+Arquivos modificados: `src/routes/_authenticated/app.tsx`, `src/i18n/translations.ts`.
+
+**Testes sugeridos**
+- Leitura: lista vazia, lista com itens, filtro arquivados.
+- Escrita: criar, editar, arquivar, restaurar, excluir com confirmação.
+- Validação: nome vazio, quantidade negativa, NPK inválido, data inválida.
+- Isolamento RLS: com uma segunda conta, confirmar que produtos da conta A não aparecem nem são editáveis pela conta B (via query direta com id conhecido).
+- Arquivamento: produto arquivado some da lista padrão e volta ao restaurar.
