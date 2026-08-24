@@ -30,7 +30,6 @@ function AppShell() {
 
 
   const sections: { key: TranslationKey; desc: TranslationKey; icon: typeof Leaf }[] = [
-    { key: "shell.careLog", desc: "shell.careLogDesc", icon: Droplets },
     { key: "shell.products", desc: "shell.productsDesc", icon: Package },
   ];
 
@@ -101,6 +100,19 @@ function AppShell() {
                   {t("identify.cta")}
                 </Link>
               </Button>
+              <Link
+                to="/tasks"
+                className="flex items-center gap-3 rounded-xl border border-border p-4 transition-colors hover:bg-accent"
+              >
+                <Droplets className="size-5 text-primary" aria-hidden />
+                <span className="flex-1">
+                  <span className="block font-medium">{t("shell.careLog")}</span>
+                  <span className="block text-sm text-muted-foreground">
+                    {t("shell.careLogDesc")}
+                  </span>
+                </span>
+                <ChevronRight className="size-4 text-muted-foreground" />
+              </Link>
               <Link
                 to="/plants"
                 className="flex items-center gap-3 rounded-xl border border-border p-4 transition-colors hover:bg-accent"

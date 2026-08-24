@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
+import { Route as AuthenticatedTasksRouteImport } from './routes/_authenticated/tasks'
 import { Route as AuthenticatedPlantsIndexRouteImport } from './routes/_authenticated/plants.index'
 import { Route as AuthenticatedPlantsIdentifyRouteImport } from './routes/_authenticated/plants.identify'
 import { Route as AuthenticatedPlantsNewRouteImport } from './routes/_authenticated/plants.new'
@@ -36,6 +37,11 @@ const AuthRoute = AuthRouteImport.update({
 const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
   id: '/app',
   path: '/app',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedTasksRoute = AuthenticatedTasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedPlantsIndexRoute =
@@ -72,6 +78,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/app': typeof AuthenticatedAppRoute
+  '/tasks': typeof AuthenticatedTasksRoute
   '/plants/identify': typeof AuthenticatedPlantsIdentifyRoute
   '/plants/new': typeof AuthenticatedPlantsNewRoute
   '/plants/': typeof AuthenticatedPlantsIndexRoute
@@ -82,6 +89,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/app': typeof AuthenticatedAppRoute
+  '/tasks': typeof AuthenticatedTasksRoute
   '/plants/identify': typeof AuthenticatedPlantsIdentifyRoute
   '/plants/new': typeof AuthenticatedPlantsNewRoute
   '/plants': typeof AuthenticatedPlantsIndexRoute
@@ -94,6 +102,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/app': typeof AuthenticatedAppRoute
+  '/_authenticated/tasks': typeof AuthenticatedTasksRoute
   '/_authenticated/plants/identify': typeof AuthenticatedPlantsIdentifyRoute
   '/_authenticated/plants/new': typeof AuthenticatedPlantsNewRoute
   '/_authenticated/plants/': typeof AuthenticatedPlantsIndexRoute
@@ -106,6 +115,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/app'
+    | '/tasks'
     | '/plants/identify'
     | '/plants/new'
     | '/plants/'
@@ -116,6 +126,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/app'
+    | '/tasks'
     | '/plants/identify'
     | '/plants/new'
     | '/plants'
@@ -127,6 +138,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/app'
+    | '/_authenticated/tasks'
     | '/_authenticated/plants/identify'
     | '/_authenticated/plants/new'
     | '/_authenticated/plants/'
@@ -170,6 +182,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/tasks': {
+      id: '/_authenticated/tasks'
+      path: '/tasks'
+      fullPath: '/tasks'
+      preLoaderRoute: typeof AuthenticatedTasksRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/plants/': {
       id: '/_authenticated/plants/'
       path: '/plants'
@@ -210,6 +229,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAppRoute: typeof AuthenticatedAppRoute
+  AuthenticatedTasksRoute: typeof AuthenticatedTasksRoute
   AuthenticatedPlantsIdentifyRoute: typeof AuthenticatedPlantsIdentifyRoute
   AuthenticatedPlantsNewRoute: typeof AuthenticatedPlantsNewRoute
   AuthenticatedPlantsIndexRoute: typeof AuthenticatedPlantsIndexRoute
@@ -219,6 +239,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAppRoute: AuthenticatedAppRoute,
+  AuthenticatedTasksRoute: AuthenticatedTasksRoute,
   AuthenticatedPlantsIdentifyRoute: AuthenticatedPlantsIdentifyRoute,
   AuthenticatedPlantsNewRoute: AuthenticatedPlantsNewRoute,
   AuthenticatedPlantsIndexRoute: AuthenticatedPlantsIndexRoute,
