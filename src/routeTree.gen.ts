@@ -20,6 +20,7 @@ import { Route as AuthenticatedPlantsNewRouteImport } from './routes/_authentica
 import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings.notifications'
 import { Route as AuthenticatedPlantsPlantIdIndexRouteImport } from './routes/_authenticated/plants.$plantId.index'
 import { Route as AuthenticatedPlantsPlantIdEditRouteImport } from './routes/_authenticated/plants.$plantId.edit'
+import { Route as ApiPublicHooksCareRemindersRouteImport } from './routes/api/public/hooks/care-reminders'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -80,6 +81,12 @@ const AuthenticatedPlantsPlantIdEditRoute =
     path: '/plants/$plantId/edit',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiPublicHooksCareRemindersRoute =
+  ApiPublicHooksCareRemindersRouteImport.update({
+    id: '/api/public/hooks/care-reminders',
+    path: '/api/public/hooks/care-reminders',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -91,6 +98,7 @@ export interface FileRoutesByFullPath {
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/plants/': typeof AuthenticatedPlantsIndexRoute
   '/plants/$plantId/edit': typeof AuthenticatedPlantsPlantIdEditRoute
+  '/api/public/hooks/care-reminders': typeof ApiPublicHooksCareRemindersRoute
   '/plants/$plantId/': typeof AuthenticatedPlantsPlantIdIndexRoute
 }
 export interface FileRoutesByTo {
@@ -103,6 +111,7 @@ export interface FileRoutesByTo {
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/plants': typeof AuthenticatedPlantsIndexRoute
   '/plants/$plantId/edit': typeof AuthenticatedPlantsPlantIdEditRoute
+  '/api/public/hooks/care-reminders': typeof ApiPublicHooksCareRemindersRoute
   '/plants/$plantId': typeof AuthenticatedPlantsPlantIdIndexRoute
 }
 export interface FileRoutesById {
@@ -117,6 +126,7 @@ export interface FileRoutesById {
   '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/_authenticated/plants/': typeof AuthenticatedPlantsIndexRoute
   '/_authenticated/plants/$plantId/edit': typeof AuthenticatedPlantsPlantIdEditRoute
+  '/api/public/hooks/care-reminders': typeof ApiPublicHooksCareRemindersRoute
   '/_authenticated/plants/$plantId/': typeof AuthenticatedPlantsPlantIdIndexRoute
 }
 export interface FileRouteTypes {
@@ -131,6 +141,7 @@ export interface FileRouteTypes {
     | '/settings/notifications'
     | '/plants/'
     | '/plants/$plantId/edit'
+    | '/api/public/hooks/care-reminders'
     | '/plants/$plantId/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -143,6 +154,7 @@ export interface FileRouteTypes {
     | '/settings/notifications'
     | '/plants'
     | '/plants/$plantId/edit'
+    | '/api/public/hooks/care-reminders'
     | '/plants/$plantId'
   id:
     | '__root__'
@@ -156,6 +168,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/notifications'
     | '/_authenticated/plants/'
     | '/_authenticated/plants/$plantId/edit'
+    | '/api/public/hooks/care-reminders'
     | '/_authenticated/plants/$plantId/'
   fileRoutesById: FileRoutesById
 }
@@ -163,6 +176,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ApiPublicHooksCareRemindersRoute: typeof ApiPublicHooksCareRemindersRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -244,6 +258,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPlantsPlantIdEditRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/hooks/care-reminders': {
+      id: '/api/public/hooks/care-reminders'
+      path: '/api/public/hooks/care-reminders'
+      fullPath: '/api/public/hooks/care-reminders'
+      preLoaderRoute: typeof ApiPublicHooksCareRemindersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -277,6 +298,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ApiPublicHooksCareRemindersRoute: ApiPublicHooksCareRemindersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
