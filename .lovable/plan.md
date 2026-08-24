@@ -1,74 +1,71 @@
-# QA Fase 3.3 — Bloco A (plano de execução)
+# QA Fase 3.3 — Bloco C: validação visual de push (foreground e background)
 
-## Observação importante antes de começar
+Bloco A permanece encerrado e intocado: a linha de `care_reminder_sent` de hoje não será apagada nem recriada, e `reminder_hour` não será alterado em nenhum momento deste bloco.
 
-O Bloco A já foi executado hoje (24/08/2026, por volta das 18:40 UTC) e passou. O estado atual do banco confirma:
+## 1. Como disparar push de teste sem tocar no dedupe de hoje
 
-- `care_reminder_sent` tem exatamente 1 linha: conta `fffbe247…` (Rogerio Correa), `local_date = 2026-08-24`, `task_count = 1`, `delivered = 1`.
-- `reminder_run_log` guarda a sequência esperada: entrega real (18:40:03 — considered 1, notified 1, push 1), ciclo bloqueado pelo dedupe (18:40:04 — considered 0) e ciclo manual sem tarefas (18:40:13 — considered 1, notified 0).
+Chamada única, sempre com os dois parâmetros:
 
-Ou seja: os três testes deste bloco já têm evidência gravada. Este plano descreve como **reexecutar do zero** caso você queira uma rodada nova e observada ao vivo. Se preferir, posso apenas apresentar o relatório com as evidências já existentes, sem tocar em nada.
+```
+POST https://plantech-grow-hub.lovable.app/api/public/hooks/care-reminders
+x-cron-secret: <lido de cron_secrets em tempo de execução>
+{ "accountId": "fffbe247-7d96-45eb-be28-d7fdf0a4a6cb", "dryRunDedupe": true }
+```
 
-## Dados de QA escolhidos
+Por que isso é seguro, confirmado no código de `care-reminders.server.ts`:
 
-| Papel no teste | Conta | Por quê |
-|---|---|---|
-| Conta com entrega real | `fffbe247…` "Rogerio Correa" | É a **única** conta do projeto com token de push válido (1 token) e com tarefa vencida (Manjericão, intervalo diário, sem log de rega). Não há alternativa segura. |
-| Conta sem tarefas elegíveis | `024ba742…` "Teste Planta" | Tem 1 planta e **nenhum** perfil de cuidado com intervalo, e nenhum token. É exatamente o cenário do Teste 2, sem precisar criar ou alterar nada. |
+- Com `accountId` informado, o job ignora a janela de horário local e a checagem de dedupe existente — por isso o `reminder_hour` continua em 9 e a linha de hoje não bloqueia o disparo.
+- A gravação em `care_reminder_sent` acontece somente quando `!dryRunDedupe && delivered > 0`. Com `dryRunDedupe: true`, o push é real mas **nenhuma linha é escrita, atualizada ou apagada**.
+- Nenhum caminho do job faz `delete` ou `update` em `care_reminder_sent`. A linha de 24/08 fica exatamente como está.
 
-Nenhuma planta, perfil de cuidado ou log de cuidado será criado, alterado ou apagado em nenhuma conta.
+Efeito colateral esperado e aceito: cada disparo grava 1 linha em `reminder_run_log` (histórico, preservado).
 
-## Teste 1 — Idempotência por conta + dia local
+## 2. O Manjericão é suficiente?
 
-Bloqueio a resolver primeiro: a linha de dedupe de hoje da conta `fffbe247…` já existe. Enquanto ela existir, qualquer disparo novo retorna zero contas — o que já é a prova da idempotência, mas impede ver o primeiro disparo com entrega.
+Sim. Confirmado no estado atual: a conta `fffbe247…` tem o Manjericão com intervalo de rega diário e sem registro de rega, portanto permanentemente vencido, e é a única conta com token de push válido (1 token). O job monta o título/corpo a partir dos nomes das plantas vencidas e do total de tarefas — exatamente o que já produziu `taskCount: 1, plantNames: ["Manjericão"]` nas execuções anteriores.
 
-Duas variantes, você escolhe:
+Nada será alterado: nem planta, nem perfil de cuidado, nem intervalo, nem `reminder_hour`, nem log de cuidado. Nenhum dado de QA será criado para este bloco.
 
-- **Variante A (sem push novo, sem mexer em nada):** disparo único pelo caminho do cron. Esperado `accountsConsidered: 0`, nenhuma linha nova. Prova a idempotência contra a linha real de hoje. Zero ruído no aparelho.
-- **Variante B (rodada completa, 1 push real):** apago a linha de dedupe de hoje, executo os dois disparos e deixo a nova linha no lugar. Custo: **exatamente 1 notificação** no seu Android.
+## 3. Teste foreground (1 notificação)
 
-Fluxo da Variante B:
+1. Você abre o Plantech no Chrome do Android, deixa a aba **visível e em primeiro plano** (idealmente na tela de Tarefas) e me avisa.
+2. Eu aguardo essa confirmação — não disparo antes.
+3. Eu executo **exatamente 1** chamada com `accountId` + `dryRunDedupe: true`.
+4. Você confirma visualmente se a notificação apareceu (bandeja/heads-up) e se o conteúdo cita o Manjericão.
+5. Eu registro da resposta: `tokens`, `delivered`, `pushFailed`, `staleTokensRemoved`, `taskCount`, `plantNames`, e a linha correspondente de `reminder_run_log`.
 
-1. Snapshot: contagem e conteúdo de `care_reminder_sent`, e `timezone` / `reminder_hour` da conta (hoje: UTC / 9).
-2. Apagar a linha `(fffbe247…, 2026-08-24)`.
-3. Ajustar `reminder_hour` para a hora UTC corrente, para a conta entrar na janela do cron.
-4. Disparo 1: `POST /api/public/hooks/care-reminders` com `x-cron-secret`, **body vazio** (sem `accountId`, sem `dryRunDedupe`) — caminho idêntico ao do pg_cron. Esperado: `accountsNotified: 1`, `pushSent: 1`, `delivered: 1`.
-5. Restaurar `reminder_hour = 9` imediatamente.
-6. Disparo 2: idêntico ao 1. Esperado: `accountsConsidered: 0`, `pushSent: 0`.
-7. Conferir que `care_reminder_sent` voltou a ter exatamente 1 linha para a chave (`account_id`, `local_date`).
+Evidência do handler: em foreground o Chrome **não** exibe nada sozinho — quem exibe é `startForegroundPushListener`, que chama `registration.showNotification` com a tag `plantech-care-reminder`. Não há log server-side desse handler; a evidência é a notificação aparecer com `delivered: 1`. Se quiser evidência textual, no console do Chrome (chrome://inspect ou DevTools remoto) pode verificar ausência de `[push] foreground listener failed`. Isso é opcional e feito por você — não tenho acesso ao console do seu aparelho.
 
-Controle de ruído: só o disparo 1 pode gerar notificação; o disparo 2 é justamente a prova de que não gera. Aviso antes de executar.
+## 4. Teste background (1 notificação)
 
-**Limpeza:** `reminder_hour` restaurado para 9. A linha de dedupe do dia **permanece** — é o comportamento correto que impede um segundo lembrete hoje.
+1. Você minimiza o Chrome ou troca de app, deixando o Plantech em segundo plano, e me avisa.
+2. Eu aguardo a confirmação.
+3. Eu executo **exatamente 1** chamada idêntica à do passo anterior.
+4. Você confirma visualmente o aparecimento da notificação e, opcionalmente, que tocá-la abre `/tasks` (comportamento de `notificationclick`).
+5. Eu registro os mesmos contadores e a linha de `reminder_run_log`.
 
-## Teste 2 — Conta sem tarefas elegíveis
+Evidência do worker: quem exibe é `onBackgroundMessage` em `public/firebase-messaging-sw.js`, também com a tag `plantech-care-reminder`. Logs do service worker ficam no dispositivo; a evidência prática é a notificação exibida com o ícone/badge do app e o clique abrindo `/tasks`.
 
-1. Confirmar por consulta que `024ba742…` continua sem perfil de cuidado com intervalo e sem token.
-2. Disparo manual com `{"accountId":"024ba742-c7c4-4819-986f-eb1ddc043a7b"}`.
-3. Esperado: `accountsNotified: 0`, `pushSent: 0`, `staleTokensRemoved: 0`.
-4. Confirmar que **nenhuma** linha nova apareceu em `care_reminder_sent` para essa conta.
+## 5. Como confirmar que não houve duplicação
 
-Sem push, sem escrita, sem limpeza necessária.
+O payload já leva `webpush.notification.tag = "plantech-care-reminder"` e ambos os handlers usam a mesma tag ao chamar `showNotification`. Consequência: mesmo que o navegador exiba a notificação nativa e o handler chame `showNotification`, o sistema **substitui** em vez de empilhar, porque a tag é idêntica.
 
-## Teste 3 — Integridade e observabilidade do log
+Verificação em cada cenário:
+- Contar as notificações visíveis na bandeja logo após o disparo: deve haver **exatamente 1** item do Plantech.
+- Confirmar que a resposta trouxe `tokens: 1` e `delivered: 1` — um único envio, um único token.
+- Após o segundo teste (background), a bandeja deve continuar com 1 item do Plantech (o novo substitui o anterior pela tag), e não 2 acumulados. Se você tiver descartado o primeiro, basta observar que só existe 1.
 
-Sem disparos extras: leitura de `reminder_run_log` cobrindo as execuções dos Testes 1 e 2 mais os ciclos automáticos do cron. Vou verificar, linha a linha:
+## 6. Limite de ruído
 
-- `started_at` e `finished_at` preenchidos e coerentes com o horário do disparo;
-- `error` nulo;
-- `triggered_manually` verdadeiro só nos disparos com `accountId`, falso no caminho do cron;
-- contadores consistentes: `push_sent + push_failed` compatível com o número de tokens tentados, e `accounts_notified <= accounts_considered`;
-- que um ciclo com zero contas elegíveis gera **uma** linha (e não zero nem duas).
+No máximo **2 notificações** no total: uma no teste foreground e uma no background. Cada disparo só acontece após sua confirmação explícita de que o app está no estado certo. Nenhum disparo extra, nenhum reteste sem você pedir.
 
-`reminder_run_log` é preservado integralmente como histórico.
+## Resumo do que será tocado
 
-## Restrições respeitadas
-
-- Nenhuma alteração em código, cron, FCM, RLS ou lógica de cálculo de tarefas.
-- Único dado real tocado: `reminder_hour` da sua conta (temporário, restaurado no mesmo passo) e, só na Variante B, a linha de dedupe de hoje.
-- Nada é executado até sua aprovação.
-
-## O que preciso decidir com você
-
-1. Teste 1: Variante A (zero push) ou Variante B (1 push real)?
-2. Quer a rodada nova ou prefere só o relatório das evidências já gravadas hoje?
+| Item | Ação |
+|---|---|
+| `care_reminder_sent` | Nenhuma escrita, nenhuma leitura destrutiva — linha de hoje intacta |
+| `accounts.reminder_hour` | Não alterado |
+| Plantas, perfis, logs de cuidado | Não alterados |
+| `push_subscriptions` | Só leitura; nenhum token sintético neste bloco |
+| `reminder_run_log` | 2 linhas novas (histórico normal) |
+| Código, cron, FCM, RLS | Nenhuma alteração |
