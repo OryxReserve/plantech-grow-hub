@@ -18,6 +18,7 @@ import { Route as AuthenticatedPlantsIndexRouteImport } from './routes/_authenti
 import { Route as AuthenticatedPlantsIdentifyRouteImport } from './routes/_authenticated/plants.identify'
 import { Route as AuthenticatedPlantsNewRouteImport } from './routes/_authenticated/plants.new'
 import { Route as AuthenticatedProductsIndexRouteImport } from './routes/_authenticated/products.index'
+import { Route as AuthenticatedProductsLabelRouteImport } from './routes/_authenticated/products.label'
 import { Route as AuthenticatedProductsNewRouteImport } from './routes/_authenticated/products.new'
 import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings.notifications'
 import { Route as AuthenticatedPlantsPlantIdIndexRouteImport } from './routes/_authenticated/plants.$plantId.index'
@@ -72,6 +73,12 @@ const AuthenticatedProductsIndexRoute =
     path: '/products/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedProductsLabelRoute =
+  AuthenticatedProductsLabelRouteImport.update({
+    id: '/products/label',
+    path: '/products/label',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedProductsNewRoute =
   AuthenticatedProductsNewRouteImport.update({
     id: '/products/new',
@@ -116,6 +123,7 @@ export interface FileRoutesByFullPath {
   '/tasks': typeof AuthenticatedTasksRoute
   '/plants/identify': typeof AuthenticatedPlantsIdentifyRoute
   '/plants/new': typeof AuthenticatedPlantsNewRoute
+  '/products/label': typeof AuthenticatedProductsLabelRoute
   '/products/new': typeof AuthenticatedProductsNewRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/plants/': typeof AuthenticatedPlantsIndexRoute
@@ -132,6 +140,7 @@ export interface FileRoutesByTo {
   '/tasks': typeof AuthenticatedTasksRoute
   '/plants/identify': typeof AuthenticatedPlantsIdentifyRoute
   '/plants/new': typeof AuthenticatedPlantsNewRoute
+  '/products/label': typeof AuthenticatedProductsLabelRoute
   '/products/new': typeof AuthenticatedProductsNewRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/plants': typeof AuthenticatedPlantsIndexRoute
@@ -150,6 +159,7 @@ export interface FileRoutesById {
   '/_authenticated/tasks': typeof AuthenticatedTasksRoute
   '/_authenticated/plants/identify': typeof AuthenticatedPlantsIdentifyRoute
   '/_authenticated/plants/new': typeof AuthenticatedPlantsNewRoute
+  '/_authenticated/products/label': typeof AuthenticatedProductsLabelRoute
   '/_authenticated/products/new': typeof AuthenticatedProductsNewRoute
   '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/_authenticated/plants/': typeof AuthenticatedPlantsIndexRoute
@@ -168,6 +178,7 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/plants/identify'
     | '/plants/new'
+    | '/products/label'
     | '/products/new'
     | '/settings/notifications'
     | '/plants/'
@@ -184,6 +195,7 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/plants/identify'
     | '/plants/new'
+    | '/products/label'
     | '/products/new'
     | '/settings/notifications'
     | '/plants'
@@ -201,6 +213,7 @@ export interface FileRouteTypes {
     | '/_authenticated/tasks'
     | '/_authenticated/plants/identify'
     | '/_authenticated/plants/new'
+    | '/_authenticated/products/label'
     | '/_authenticated/products/new'
     | '/_authenticated/settings/notifications'
     | '/_authenticated/plants/'
@@ -283,6 +296,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProductsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/products/label': {
+      id: '/_authenticated/products/label'
+      path: '/products/label'
+      fullPath: '/products/label'
+      preLoaderRoute: typeof AuthenticatedProductsLabelRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/products/new': {
       id: '/_authenticated/products/new'
       path: '/products/new'
@@ -333,6 +353,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedTasksRoute: typeof AuthenticatedTasksRoute
   AuthenticatedPlantsIdentifyRoute: typeof AuthenticatedPlantsIdentifyRoute
   AuthenticatedPlantsNewRoute: typeof AuthenticatedPlantsNewRoute
+  AuthenticatedProductsLabelRoute: typeof AuthenticatedProductsLabelRoute
   AuthenticatedProductsNewRoute: typeof AuthenticatedProductsNewRoute
   AuthenticatedSettingsNotificationsRoute: typeof AuthenticatedSettingsNotificationsRoute
   AuthenticatedPlantsIndexRoute: typeof AuthenticatedPlantsIndexRoute
@@ -347,6 +368,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedTasksRoute: AuthenticatedTasksRoute,
   AuthenticatedPlantsIdentifyRoute: AuthenticatedPlantsIdentifyRoute,
   AuthenticatedPlantsNewRoute: AuthenticatedPlantsNewRoute,
+  AuthenticatedProductsLabelRoute: AuthenticatedProductsLabelRoute,
   AuthenticatedProductsNewRoute: AuthenticatedProductsNewRoute,
   AuthenticatedSettingsNotificationsRoute:
     AuthenticatedSettingsNotificationsRoute,

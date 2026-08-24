@@ -1,8 +1,10 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ScanLine } from "lucide-react";
 import { toast } from "sonner";
 
 import { PlantScreen } from "@/components/plants/screen";
+import { Button } from "@/components/ui/button";
 import { ProductForm } from "@/components/products/product-form";
 import { useActiveAccount } from "@/context/active-account";
 import { useI18n } from "@/i18n/i18n";
@@ -54,12 +56,22 @@ function NewProductPage() {
       {!activeAccountId ? (
         <p className="text-sm text-muted-foreground">{t("plants.noAccountData")}</p>
       ) : (
-        <ProductForm
+        <>
+          <div className="mb-4">
+            <Button asChild variant="outline" className="h-11 w-full">
+              <Link to="/products/label">
+                <ScanLine className="size-4" aria-hidden />
+                {t("productLabel.cta")}
+              </Link>
+            </Button>
+          </div>
+          <ProductForm
           submitLabel={t("products.create")}
           isSubmitting={mutation.isPending}
           onSubmit={(input) => mutation.mutate(input)}
-          onCancel={() => navigate({ to: "/products" })}
-        />
+            onCancel={() => navigate({ to: "/products" })}
+          />
+        </>
       )}
     </PlantScreen>
   );
