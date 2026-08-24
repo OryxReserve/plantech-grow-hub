@@ -60,30 +60,39 @@ export type Database = {
           billing_email: string | null
           created_at: string
           created_by: string | null
+          email_fallback_enabled: boolean
           id: string
           is_personal: boolean
           name: string
+          reminder_hour: number
           stripe_customer_id: string | null
+          timezone: string
           updated_at: string
         }
         Insert: {
           billing_email?: string | null
           created_at?: string
           created_by?: string | null
+          email_fallback_enabled?: boolean
           id?: string
           is_personal?: boolean
           name: string
+          reminder_hour?: number
           stripe_customer_id?: string | null
+          timezone?: string
           updated_at?: string
         }
         Update: {
           billing_email?: string | null
           created_at?: string
           created_by?: string | null
+          email_fallback_enabled?: boolean
           id?: string
           is_personal?: boolean
           name?: string
+          reminder_hour?: number
           stripe_customer_id?: string | null
+          timezone?: string
           updated_at?: string
         }
         Relationships: []
@@ -487,6 +496,44 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          account_id: string
+          created_at: string
+          fcm_token: string
+          id: string
+          last_seen_at: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string
+          fcm_token: string
+          id?: string
+          last_seen_at?: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string
+          fcm_token?: string
+          id?: string
+          last_seen_at?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       species_care_guide: {
         Row: {

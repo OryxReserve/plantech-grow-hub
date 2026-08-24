@@ -17,6 +17,7 @@ import { Route as AuthenticatedTasksRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedPlantsIndexRouteImport } from './routes/_authenticated/plants.index'
 import { Route as AuthenticatedPlantsIdentifyRouteImport } from './routes/_authenticated/plants.identify'
 import { Route as AuthenticatedPlantsNewRouteImport } from './routes/_authenticated/plants.new'
+import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings.notifications'
 import { Route as AuthenticatedPlantsPlantIdIndexRouteImport } from './routes/_authenticated/plants.$plantId.index'
 import { Route as AuthenticatedPlantsPlantIdEditRouteImport } from './routes/_authenticated/plants.$plantId.edit'
 
@@ -61,6 +62,12 @@ const AuthenticatedPlantsNewRoute = AuthenticatedPlantsNewRouteImport.update({
   path: '/plants/new',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSettingsNotificationsRoute =
+  AuthenticatedSettingsNotificationsRouteImport.update({
+    id: '/settings/notifications',
+    path: '/settings/notifications',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedPlantsPlantIdIndexRoute =
   AuthenticatedPlantsPlantIdIndexRouteImport.update({
     id: '/plants/$plantId/',
@@ -81,6 +88,7 @@ export interface FileRoutesByFullPath {
   '/tasks': typeof AuthenticatedTasksRoute
   '/plants/identify': typeof AuthenticatedPlantsIdentifyRoute
   '/plants/new': typeof AuthenticatedPlantsNewRoute
+  '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/plants/': typeof AuthenticatedPlantsIndexRoute
   '/plants/$plantId/edit': typeof AuthenticatedPlantsPlantIdEditRoute
   '/plants/$plantId/': typeof AuthenticatedPlantsPlantIdIndexRoute
@@ -92,6 +100,7 @@ export interface FileRoutesByTo {
   '/tasks': typeof AuthenticatedTasksRoute
   '/plants/identify': typeof AuthenticatedPlantsIdentifyRoute
   '/plants/new': typeof AuthenticatedPlantsNewRoute
+  '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/plants': typeof AuthenticatedPlantsIndexRoute
   '/plants/$plantId/edit': typeof AuthenticatedPlantsPlantIdEditRoute
   '/plants/$plantId': typeof AuthenticatedPlantsPlantIdIndexRoute
@@ -105,6 +114,7 @@ export interface FileRoutesById {
   '/_authenticated/tasks': typeof AuthenticatedTasksRoute
   '/_authenticated/plants/identify': typeof AuthenticatedPlantsIdentifyRoute
   '/_authenticated/plants/new': typeof AuthenticatedPlantsNewRoute
+  '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/_authenticated/plants/': typeof AuthenticatedPlantsIndexRoute
   '/_authenticated/plants/$plantId/edit': typeof AuthenticatedPlantsPlantIdEditRoute
   '/_authenticated/plants/$plantId/': typeof AuthenticatedPlantsPlantIdIndexRoute
@@ -118,6 +128,7 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/plants/identify'
     | '/plants/new'
+    | '/settings/notifications'
     | '/plants/'
     | '/plants/$plantId/edit'
     | '/plants/$plantId/'
@@ -129,6 +140,7 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/plants/identify'
     | '/plants/new'
+    | '/settings/notifications'
     | '/plants'
     | '/plants/$plantId/edit'
     | '/plants/$plantId'
@@ -141,6 +153,7 @@ export interface FileRouteTypes {
     | '/_authenticated/tasks'
     | '/_authenticated/plants/identify'
     | '/_authenticated/plants/new'
+    | '/_authenticated/settings/notifications'
     | '/_authenticated/plants/'
     | '/_authenticated/plants/$plantId/edit'
     | '/_authenticated/plants/$plantId/'
@@ -210,6 +223,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPlantsNewRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/settings/notifications': {
+      id: '/_authenticated/settings/notifications'
+      path: '/settings/notifications'
+      fullPath: '/settings/notifications'
+      preLoaderRoute: typeof AuthenticatedSettingsNotificationsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/plants/$plantId/': {
       id: '/_authenticated/plants/$plantId/'
       path: '/plants/$plantId'
@@ -232,6 +252,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedTasksRoute: typeof AuthenticatedTasksRoute
   AuthenticatedPlantsIdentifyRoute: typeof AuthenticatedPlantsIdentifyRoute
   AuthenticatedPlantsNewRoute: typeof AuthenticatedPlantsNewRoute
+  AuthenticatedSettingsNotificationsRoute: typeof AuthenticatedSettingsNotificationsRoute
   AuthenticatedPlantsIndexRoute: typeof AuthenticatedPlantsIndexRoute
   AuthenticatedPlantsPlantIdEditRoute: typeof AuthenticatedPlantsPlantIdEditRoute
   AuthenticatedPlantsPlantIdIndexRoute: typeof AuthenticatedPlantsPlantIdIndexRoute
@@ -242,6 +263,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedTasksRoute: AuthenticatedTasksRoute,
   AuthenticatedPlantsIdentifyRoute: AuthenticatedPlantsIdentifyRoute,
   AuthenticatedPlantsNewRoute: AuthenticatedPlantsNewRoute,
+  AuthenticatedSettingsNotificationsRoute:
+    AuthenticatedSettingsNotificationsRoute,
   AuthenticatedPlantsIndexRoute: AuthenticatedPlantsIndexRoute,
   AuthenticatedPlantsPlantIdEditRoute: AuthenticatedPlantsPlantIdEditRoute,
   AuthenticatedPlantsPlantIdIndexRoute: AuthenticatedPlantsPlantIdIndexRoute,
