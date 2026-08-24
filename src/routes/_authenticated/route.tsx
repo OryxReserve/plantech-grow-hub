@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 
 import { AppHeader } from "@/components/app-header";
+import { ForegroundPushListener } from "@/components/foreground-push-listener";
 import { ProfileLocaleSync } from "@/components/profile-locale-sync";
 import { ActiveAccountProvider } from "@/context/active-account";
 import { supabase } from "@/integrations/supabase/client";
