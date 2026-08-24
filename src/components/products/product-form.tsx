@@ -22,6 +22,8 @@ import {
 
 type ProductFormProps = {
   initialValue?: Partial<ProductInput>;
+  /** Field names pre-filled from a label photo; shown as a discreet badge. */
+  labelFields?: readonly string[];
   submitLabel: string;
   isSubmitting: boolean;
   onSubmit: (input: ProductInput) => void;
@@ -33,14 +35,26 @@ function nullable(value: string) {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function ReadBadge({ show, text }: { show: boolean; text: string }) {
+  if (!show) return null;
+  return (
+    <span className="ml-1 align-middle rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+      {text}
+    </span>
+  );
+}
+
 export function ProductForm({
   initialValue,
+  labelFields,
   submitLabel,
   isSubmitting,
   onSubmit,
   onCancel,
 }: ProductFormProps) {
   const { t } = useI18n();
+  const read = new Set(labelFields ?? []);
+  const badge = t("productLabel.fromLabel");
   const [name, setName] = useState(initialValue?.name ?? "");
   const [brand, setBrand] = useState(initialValue?.brand ?? "");
   const [category, setCategory] = useState(initialValue?.category ?? "");
@@ -115,7 +129,8 @@ export function ProductForm({
       onCancel={onCancel}
     >
       <div className="space-y-1.5">
-        <Label htmlFor="product-name">{t("products.field.name")}</Label>
+        <Label htmlFor="product-name">{t("products.field.name")}
+          <ReadBadge show={read.has("name")} text={badge} /></Label>
         <Input
           id="product-name"
           ref={nameRef}
@@ -130,7 +145,8 @@ export function ProductForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="product-brand">
-            {t("products.field.brand")}{" "}
+            {t("products.field.brand")}
+          <ReadBadge show={read.has("brand")} text={badge} />{" "}
             <span className="text-xs text-muted-foreground">
               ({t("field.optional")})
             </span>
@@ -145,7 +161,8 @@ export function ProductForm({
 
         <div className="space-y-1.5">
           <Label htmlFor="product-category">
-            {t("products.field.category")}{" "}
+            {t("products.field.category")}
+          <ReadBadge show={read.has("category")} text={badge} />{" "}
             <span className="text-xs text-muted-foreground">
               ({t("field.optional")})
             </span>
@@ -171,7 +188,8 @@ export function ProductForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="product-quantity">
-            {t("products.field.quantity")}{" "}
+            {t("products.field.quantity")}
+          <ReadBadge show={read.has("quantity")} text={badge} />{" "}
             <span className="text-xs text-muted-foreground">
               ({t("field.optional")})
             </span>
@@ -188,7 +206,8 @@ export function ProductForm({
 
         <div className="space-y-1.5">
           <Label htmlFor="product-unit">
-            {t("products.field.unit")}{" "}
+            {t("products.field.unit")}
+          <ReadBadge show={read.has("unit")} text={badge} />{" "}
             <span className="text-xs text-muted-foreground">
               ({t("field.optional")})
             </span>
@@ -211,7 +230,8 @@ export function ProductForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="product-npk">
-            {t("products.field.npk")}{" "}
+            {t("products.field.npk")}
+          <ReadBadge show={read.has("npk")} text={badge} />{" "}
             <span className="text-xs text-muted-foreground">
               ({t("field.optional")})
             </span>
@@ -227,7 +247,8 @@ export function ProductForm({
 
         <div className="space-y-1.5">
           <Label htmlFor="product-expires">
-            {t("products.field.expiresAt")}{" "}
+            {t("products.field.expiresAt")}
+          <ReadBadge show={read.has("expires_at")} text={badge} />{" "}
             <span className="text-xs text-muted-foreground">
               ({t("field.optional")})
             </span>
@@ -243,7 +264,8 @@ export function ProductForm({
 
       <div className="space-y-1.5">
         <Label htmlFor="product-description">
-          {t("products.field.description")}{" "}
+          {t("products.field.description")}
+          <ReadBadge show={read.has("description")} text={badge} />{" "}
           <span className="text-xs text-muted-foreground">({t("field.optional")})</span>
         </Label>
         <Textarea
@@ -256,7 +278,8 @@ export function ProductForm({
 
       <div className="space-y-1.5">
         <Label htmlFor="product-notes">
-          {t("products.field.notes")}{" "}
+          {t("products.field.notes")}
+          <ReadBadge show={read.has("notes")} text={badge} />{" "}
           <span className="text-xs text-muted-foreground">({t("field.optional")})</span>
         </Label>
         <Textarea
