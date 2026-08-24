@@ -33,17 +33,31 @@ export const Route = createFileRoute("/api/public/hooks/care-reminders")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const expected = process.env["LOVABLE_CRON_SECRET"];
-        if (!expected) {
-          console.error("[care-reminders] LOVABLE_CRON_SECRET is not configured");
-          return json({ error: "Reminder job is not configured" }, 500);
-        }
-
         const provided =
           request.headers.get("x-cron-secret") ??
           request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
           "";
-        if (!provided || !secretMatches(provided, expected)) {
+        if (!provided) return json({ error: "Unauthorized" }, 401);
+
+        // Two accepted credentials: the platform cron secret (manual QA) and
+        // the job secret stored in the database, which is what pg_cron sends.
+        const expected: string[] = [];
+        const envSecret = process.env["LOVABLE_CRON_SECRET"];
+        if (envSecret) expected.push(envSecret);
+
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { data: secretRow } = await supabaseAdmin
+          .from("cron_secrets")
+          .select("secret")
+          .eq("name", "care_reminders")
+          .maybeSingle();
+        if (secretRow?.secret) expected.push(secretRow.secret);
+
+        if (expected.length === 0) {
+          console.error("[care-reminders] no cron credential is configured");
+          return json({ error: "Reminder job is not configured" }, 500);
+        }
+        if (!expected.some((candidate) => secretMatches(provided, candidate))) {
           return json({ error: "Unauthorized" }, 401);
         }
 
