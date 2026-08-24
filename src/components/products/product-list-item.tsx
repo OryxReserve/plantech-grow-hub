@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronRight, FlaskConical } from "lucide-react";
 
+import { categoryLabelKey } from "@/components/products/product-labels";
 import { useI18n } from "@/i18n/i18n";
 import type { ProductRow } from "@/lib/products";
 import { cn } from "@/lib/utils";
@@ -8,14 +9,14 @@ import { cn } from "@/lib/utils";
 function formatQuantity(product: ProductRow) {
   if (product.quantity === null) return null;
   const value = Number(product.quantity);
-  const formatted = Number.isInteger(value) ? String(value) : String(value);
-  return product.unit ? `${formatted} ${product.unit}` : formatted;
+  return product.unit ? `${value} ${product.unit}` : String(value);
 }
 
 /** Compact, scannable row: identity on the left, stock on the right. */
 export function ProductListItem({ product }: { product: ProductRow }) {
   const { t } = useI18n();
   const quantity = formatQuantity(product);
+  const categoryKey = categoryLabelKey(product.category);
   const expired =
     product.expires_at !== null &&
     new Date(`${product.expires_at}T00:00:00`).getTime() < Date.now();
@@ -33,15 +34,11 @@ export function ProductListItem({ product }: { product: ProductRow }) {
         <span className="block truncate font-medium">{product.name}</span>
         <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
           {product.brand ? <span className="truncate">{product.brand}</span> : null}
-          {product.category ? (
-            <span className="rounded-full bg-muted px-2 py-0.5">
-              {t(`products.category.${product.category}` as never)}
-            </span>
+          {categoryKey ? (
+            <span className="rounded-full bg-muted px-2 py-0.5">{t(categoryKey)}</span>
           ) : null}
           {product.npk ? (
-            <span className="rounded-full bg-muted px-2 py-0.5">
-              NPK {product.npk}
-            </span>
+            <span className="rounded-full bg-muted px-2 py-0.5">NPK {product.npk}</span>
           ) : null}
           {product.expires_at ? (
             <span
