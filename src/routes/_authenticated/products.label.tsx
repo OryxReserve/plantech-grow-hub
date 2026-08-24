@@ -58,7 +58,7 @@ function draftToInput(draft: ProductLabelDraft): Partial<ProductInput> {
 }
 
 function ProductLabelPage() {
-  const { t, language } = useI18n();
+  const { t, locale } = useI18n();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { activeAccountId } = useActiveAccount();
@@ -125,7 +125,7 @@ function ProductLabelPage() {
     setStep("analyzing");
     try {
       const result = await readProductLabel({
-        data: { accountId: activeAccountId, storagePaths: paths, language },
+        data: { accountId: activeAccountId, storagePaths: paths, language: locale },
       });
       // The server always deletes the staged objects; drop local previews too.
       setPhotos((current) => current.map((photo) => ({ ...photo, path: null })));
