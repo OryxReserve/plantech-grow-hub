@@ -8,6 +8,7 @@ import { PlantPhotoGallery } from "@/components/plants/photo-gallery";
 import { CareProfileSheet } from "@/components/plants/profile/care-profile-sheet";
 import { CareSummary } from "@/components/plants/profile/care-summary";
 import { CareTimeline } from "@/components/plants/profile/care-timeline";
+import { ProfileCompletenessChecklist } from "@/components/plants/profile/completeness-checklist";
 import { InitialCareCard } from "@/components/plants/profile/initial-care-card";
 import { PlantContextCard } from "@/components/plants/profile/plant-context-card";
 import { PlantContextSheet } from "@/components/plants/profile/plant-context-sheet";
@@ -124,6 +125,11 @@ function PlantDetailPage() {
         <>
           <PlantHero
             accountId={activeAccountId}
+            plant={plant}
+            profile={careProfile.data ?? null}
+          />
+
+          <ProfileCompletenessChecklist
             plant={plant}
             profile={careProfile.data ?? null}
           />
