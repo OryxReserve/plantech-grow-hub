@@ -135,6 +135,7 @@ export async function enablePush(accountId: string): Promise<
       data: { accountId, token, userAgent: navigator.userAgent.slice(0, 500) },
     });
     window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    void startForegroundPushListener();
     return { ok: true, token };
   } catch (error) {
     console.error("[push] enable failed", error);
