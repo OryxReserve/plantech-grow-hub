@@ -480,9 +480,13 @@ export type Database = {
           category: string | null
           created_at: string
           created_by: string | null
+          description: string | null
+          expires_at: string | null
           id: string
+          is_archived: boolean
           name: string
           notes: string | null
+          npk: string | null
           quantity: number | null
           unit: string | null
           updated_at: string
@@ -493,9 +497,13 @@ export type Database = {
           category?: string | null
           created_at?: string
           created_by?: string | null
+          description?: string | null
+          expires_at?: string | null
           id?: string
+          is_archived?: boolean
           name: string
           notes?: string | null
+          npk?: string | null
           quantity?: number | null
           unit?: string | null
           updated_at?: string
@@ -506,9 +514,13 @@ export type Database = {
           category?: string | null
           created_at?: string
           created_by?: string | null
+          description?: string | null
+          expires_at?: string | null
           id?: string
+          is_archived?: boolean
           name?: string
           notes?: string | null
+          npk?: string | null
           quantity?: number | null
           unit?: string | null
           updated_at?: string

@@ -17,9 +17,12 @@ import { Route as AuthenticatedTasksRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedPlantsIndexRouteImport } from './routes/_authenticated/plants.index'
 import { Route as AuthenticatedPlantsIdentifyRouteImport } from './routes/_authenticated/plants.identify'
 import { Route as AuthenticatedPlantsNewRouteImport } from './routes/_authenticated/plants.new'
+import { Route as AuthenticatedProductsIndexRouteImport } from './routes/_authenticated/products.index'
+import { Route as AuthenticatedProductsNewRouteImport } from './routes/_authenticated/products.new'
 import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings.notifications'
 import { Route as AuthenticatedPlantsPlantIdIndexRouteImport } from './routes/_authenticated/plants.$plantId.index'
 import { Route as AuthenticatedPlantsPlantIdEditRouteImport } from './routes/_authenticated/plants.$plantId.edit'
+import { Route as AuthenticatedProductsProductIdEditRouteImport } from './routes/_authenticated/products.$productId.edit'
 import { Route as ApiPublicHooksCareRemindersRouteImport } from './routes/api/public/hooks/care-reminders'
 
 const IndexRoute = IndexRouteImport.update({
@@ -63,6 +66,18 @@ const AuthenticatedPlantsNewRoute = AuthenticatedPlantsNewRouteImport.update({
   path: '/plants/new',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedProductsIndexRoute =
+  AuthenticatedProductsIndexRouteImport.update({
+    id: '/products/',
+    path: '/products/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedProductsNewRoute =
+  AuthenticatedProductsNewRouteImport.update({
+    id: '/products/new',
+    path: '/products/new',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSettingsNotificationsRoute =
   AuthenticatedSettingsNotificationsRouteImport.update({
     id: '/settings/notifications',
@@ -81,6 +96,12 @@ const AuthenticatedPlantsPlantIdEditRoute =
     path: '/plants/$plantId/edit',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedProductsProductIdEditRoute =
+  AuthenticatedProductsProductIdEditRouteImport.update({
+    id: '/products/$productId/edit',
+    path: '/products/$productId/edit',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const ApiPublicHooksCareRemindersRoute =
   ApiPublicHooksCareRemindersRouteImport.update({
     id: '/api/public/hooks/care-reminders',
@@ -95,9 +116,12 @@ export interface FileRoutesByFullPath {
   '/tasks': typeof AuthenticatedTasksRoute
   '/plants/identify': typeof AuthenticatedPlantsIdentifyRoute
   '/plants/new': typeof AuthenticatedPlantsNewRoute
+  '/products/new': typeof AuthenticatedProductsNewRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/plants/': typeof AuthenticatedPlantsIndexRoute
+  '/products/': typeof AuthenticatedProductsIndexRoute
   '/plants/$plantId/edit': typeof AuthenticatedPlantsPlantIdEditRoute
+  '/products/$productId/edit': typeof AuthenticatedProductsProductIdEditRoute
   '/api/public/hooks/care-reminders': typeof ApiPublicHooksCareRemindersRoute
   '/plants/$plantId/': typeof AuthenticatedPlantsPlantIdIndexRoute
 }
@@ -108,9 +132,12 @@ export interface FileRoutesByTo {
   '/tasks': typeof AuthenticatedTasksRoute
   '/plants/identify': typeof AuthenticatedPlantsIdentifyRoute
   '/plants/new': typeof AuthenticatedPlantsNewRoute
+  '/products/new': typeof AuthenticatedProductsNewRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/plants': typeof AuthenticatedPlantsIndexRoute
+  '/products': typeof AuthenticatedProductsIndexRoute
   '/plants/$plantId/edit': typeof AuthenticatedPlantsPlantIdEditRoute
+  '/products/$productId/edit': typeof AuthenticatedProductsProductIdEditRoute
   '/api/public/hooks/care-reminders': typeof ApiPublicHooksCareRemindersRoute
   '/plants/$plantId': typeof AuthenticatedPlantsPlantIdIndexRoute
 }
@@ -123,9 +150,12 @@ export interface FileRoutesById {
   '/_authenticated/tasks': typeof AuthenticatedTasksRoute
   '/_authenticated/plants/identify': typeof AuthenticatedPlantsIdentifyRoute
   '/_authenticated/plants/new': typeof AuthenticatedPlantsNewRoute
+  '/_authenticated/products/new': typeof AuthenticatedProductsNewRoute
   '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/_authenticated/plants/': typeof AuthenticatedPlantsIndexRoute
+  '/_authenticated/products/': typeof AuthenticatedProductsIndexRoute
   '/_authenticated/plants/$plantId/edit': typeof AuthenticatedPlantsPlantIdEditRoute
+  '/_authenticated/products/$productId/edit': typeof AuthenticatedProductsProductIdEditRoute
   '/api/public/hooks/care-reminders': typeof ApiPublicHooksCareRemindersRoute
   '/_authenticated/plants/$plantId/': typeof AuthenticatedPlantsPlantIdIndexRoute
 }
@@ -138,9 +168,12 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/plants/identify'
     | '/plants/new'
+    | '/products/new'
     | '/settings/notifications'
     | '/plants/'
+    | '/products/'
     | '/plants/$plantId/edit'
+    | '/products/$productId/edit'
     | '/api/public/hooks/care-reminders'
     | '/plants/$plantId/'
   fileRoutesByTo: FileRoutesByTo
@@ -151,9 +184,12 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/plants/identify'
     | '/plants/new'
+    | '/products/new'
     | '/settings/notifications'
     | '/plants'
+    | '/products'
     | '/plants/$plantId/edit'
+    | '/products/$productId/edit'
     | '/api/public/hooks/care-reminders'
     | '/plants/$plantId'
   id:
@@ -165,9 +201,12 @@ export interface FileRouteTypes {
     | '/_authenticated/tasks'
     | '/_authenticated/plants/identify'
     | '/_authenticated/plants/new'
+    | '/_authenticated/products/new'
     | '/_authenticated/settings/notifications'
     | '/_authenticated/plants/'
+    | '/_authenticated/products/'
     | '/_authenticated/plants/$plantId/edit'
+    | '/_authenticated/products/$productId/edit'
     | '/api/public/hooks/care-reminders'
     | '/_authenticated/plants/$plantId/'
   fileRoutesById: FileRoutesById
@@ -237,6 +276,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPlantsNewRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/products/': {
+      id: '/_authenticated/products/'
+      path: '/products'
+      fullPath: '/products/'
+      preLoaderRoute: typeof AuthenticatedProductsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/products/new': {
+      id: '/_authenticated/products/new'
+      path: '/products/new'
+      fullPath: '/products/new'
+      preLoaderRoute: typeof AuthenticatedProductsNewRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/settings/notifications': {
       id: '/_authenticated/settings/notifications'
       path: '/settings/notifications'
@@ -258,6 +311,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPlantsPlantIdEditRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/products/$productId/edit': {
+      id: '/_authenticated/products/$productId/edit'
+      path: '/products/$productId/edit'
+      fullPath: '/products/$productId/edit'
+      preLoaderRoute: typeof AuthenticatedProductsProductIdEditRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/api/public/hooks/care-reminders': {
       id: '/api/public/hooks/care-reminders'
       path: '/api/public/hooks/care-reminders'
@@ -273,9 +333,12 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedTasksRoute: typeof AuthenticatedTasksRoute
   AuthenticatedPlantsIdentifyRoute: typeof AuthenticatedPlantsIdentifyRoute
   AuthenticatedPlantsNewRoute: typeof AuthenticatedPlantsNewRoute
+  AuthenticatedProductsNewRoute: typeof AuthenticatedProductsNewRoute
   AuthenticatedSettingsNotificationsRoute: typeof AuthenticatedSettingsNotificationsRoute
   AuthenticatedPlantsIndexRoute: typeof AuthenticatedPlantsIndexRoute
+  AuthenticatedProductsIndexRoute: typeof AuthenticatedProductsIndexRoute
   AuthenticatedPlantsPlantIdEditRoute: typeof AuthenticatedPlantsPlantIdEditRoute
+  AuthenticatedProductsProductIdEditRoute: typeof AuthenticatedProductsProductIdEditRoute
   AuthenticatedPlantsPlantIdIndexRoute: typeof AuthenticatedPlantsPlantIdIndexRoute
 }
 
@@ -284,10 +347,14 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedTasksRoute: AuthenticatedTasksRoute,
   AuthenticatedPlantsIdentifyRoute: AuthenticatedPlantsIdentifyRoute,
   AuthenticatedPlantsNewRoute: AuthenticatedPlantsNewRoute,
+  AuthenticatedProductsNewRoute: AuthenticatedProductsNewRoute,
   AuthenticatedSettingsNotificationsRoute:
     AuthenticatedSettingsNotificationsRoute,
   AuthenticatedPlantsIndexRoute: AuthenticatedPlantsIndexRoute,
+  AuthenticatedProductsIndexRoute: AuthenticatedProductsIndexRoute,
   AuthenticatedPlantsPlantIdEditRoute: AuthenticatedPlantsPlantIdEditRoute,
+  AuthenticatedProductsProductIdEditRoute:
+    AuthenticatedProductsProductIdEditRoute,
   AuthenticatedPlantsPlantIdIndexRoute: AuthenticatedPlantsPlantIdIndexRoute,
 }
 

@@ -29,9 +29,6 @@ function AppShell() {
   } = useActiveAccount();
 
 
-  const sections: { key: TranslationKey; desc: TranslationKey; icon: typeof Leaf }[] = [
-    { key: "shell.products", desc: "shell.productsDesc", icon: Package },
-  ];
 
   return (
     <div>
@@ -127,6 +124,19 @@ function AppShell() {
                 <ChevronRight className="size-4 text-muted-foreground" />
               </Link>
               <Link
+                to="/products"
+                className="flex items-center gap-3 rounded-xl border border-border p-4 transition-colors hover:bg-accent"
+              >
+                <Package className="size-5 text-primary" aria-hidden />
+                <span className="flex-1">
+                  <span className="block font-medium">{t("shell.products")}</span>
+                  <span className="block text-sm text-muted-foreground">
+                    {t("shell.productsDesc")}
+                  </span>
+                </span>
+                <ChevronRight className="size-4 text-muted-foreground" />
+              </Link>
+              <Link
                 to="/settings/notifications"
                 className="flex items-center gap-3 rounded-xl border border-border p-4 transition-colors hover:bg-accent"
               >
@@ -139,31 +149,9 @@ function AppShell() {
                 </span>
                 <ChevronRight className="size-4 text-muted-foreground" />
               </Link>
+
             </section>
 
-            <section>
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                {t("shell.next")}
-              </h2>
-              <div className="grid gap-3">
-
-                {sections.map(({ key, desc, icon: Icon }) => (
-                  <div
-                    key={key}
-                    className="flex items-start gap-3 rounded-xl border border-border p-4"
-                  >
-                    <Icon className="mt-0.5 size-5 text-primary" aria-hidden />
-                    <div className="flex-1">
-                      <p className="font-medium">{t(key)}</p>
-                      <p className="text-sm text-muted-foreground">{t(desc)}</p>
-                    </div>
-                    <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
-                      {t("shell.soon")}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </section>
           </>
         )}
       </main>
