@@ -1,55 +1,65 @@
-# QA Fase 3.3 — Bloco A: idempotência, conta sem tarefas e integridade de log
+# QA Fase 3.3 — Bloco B: fuso horário, token morto e múltiplos dispositivos
 
-## O que verifiquei agora (estado real)
+## Estado real verificado agora
 
-- Só existe **um** token de push no banco: conta `fffbe247…` (Rogerio Correa), 1 token. Todas as outras contas têm 0 tokens — nenhum teste de entrega real é possível fora do seu aparelho.
-- Nessa conta, a única planta com intervalo é o **Manjericão** (rega a cada 1 dia, sem log de rega e sem `last_watered_at`) — ou seja, sempre vencida. As outras 6 plantas não têm intervalo.
-- `care_reminder_sent` está **vazia** (0 linhas). Nenhum dia foi marcado ainda.
-- `reminder_run_log` tem 10+ linhas; os ciclos automáticos recentes (15:05, 15:11–15:13, 16:05) gravaram `accounts_considered: 0`, `push_sent: 0`, com `started_at`/`finished_at` preenchidos e `error` nulo.
-- Contas candidatas a "sem tarefas": `024ba742…` (Teste Planta, 1 planta, 0 perfis com intervalo) e `39504b73…` (Foto Tester, mesma situação). Ambas são contas de teste antigas, não são a sua conta real.
+- Contas de QA disponíveis, todas sem token de push: `bcb26fe4…` (Tester QA, 1 planta, 1 perfil com intervalo), `c7469131…` (Tester QA, 4 plantas, 1 perfil com intervalo), `6e8f4626…` (Tester QA, `Europe/Madrid`, hora 7, 0 plantas), `024ba742…` (Teste Planta, 1 planta, 0 perfis).
+- Conta real `fffbe247…` (Rogerio Correa): `UTC`, hora 9, 1 token válido, 1 linha em `care_reminder_sent` (a de hoje, do Bloco A).
+- `care_reminder_sent` só tem essa 1 linha no banco inteiro.
+- Classificação de token morto em `fcm.server.ts`: `stale = true` quando HTTP 404, ou `error.status` = `NOT_FOUND`/`UNREGISTERED`, ou HTTP 400 cujo corpo contenha `registration-token` ou `not a valid FCM`.
 
-## Ponto que muda o Teste 1 (importante)
+## Ponto crítico sobre o Teste 2 (ler antes de aprovar)
 
-Lendo o código do job: o disparo **manual** com `accountId` entra por um caminho que ignora completamente `care_reminder_sent` — ele só monta a conta alvo e envia. A deduplicação diária acontece exclusivamente dentro de `list_accounts_due_for_reminder()`, que exclui contas que já têm linha do dia.
+Um token sintético (string inventada) **não** retorna `UNREGISTERED`. O FCM v1 responde HTTP 400 com `error.status: INVALID_ARGUMENT` e mensagem do tipo *"The registration token is not a valid FCM registration token"*. O código atual cobre esse caso pela terceira condição (400 + regex `registration-token|not a valid FCM`), então **deve** ser classificado como morto — mas isso depende do texto exato devolvido pelo Google, que pode variar.
 
-Consequência: dois disparos manuais seguidos **vão** enviar dois pushes. Isso não prova falha de idempotência — prova apenas que o caminho manual é, por desenho, um bypass. O teste correto para idempotência é pelo caminho do cron (sem `accountId`).
+Por isso o Teste 2 é feito em duas etapas: primeiro um disparo de sonda para ler a resposta real, e só depois a conclusão. Se o corpo não casar com a regex, o resultado será `staleTokensRemoved: 0` e eu reporto isso como uma lacuna real de tratamento (`INVALID_ARGUMENT` não é reconhecido), propondo o ajuste em plano separado — sem alterar código nesta rodada.
 
-## Teste 1 — Idempotência por conta + dia local (via caminho do cron)
+## Teste 1 — Fuso horário (zero push)
 
-Como executar, sem enviar push repetido para o seu aparelho:
+Conta usada: `6e8f4626…` (Tester QA, já em `Europe/Madrid`) e `bcb26fe4…` (Tester QA, hoje em `UTC`). Nenhuma tem token; a conta real não é tocada.
 
-1. Snapshot: `select * from care_reminder_sent where account_id = 'fffbe247…'` (hoje: zero linhas) e a última linha de `reminder_run_log`.
-2. Um único disparo real, sem `accountId` e sem `dryRunDedupe`, com a conta temporariamente elegível pelo horário: ajusto `accounts.reminder_hour` da conta para a hora UTC corrente (a conta está em `UTC`), disparo o hook, e depois **restauro `reminder_hour` para 9**. Isso não toca em plantas, perfis nem logs de cuidado.
-   - Resultado esperado: `accountsConsidered: 1`, `pushSent: 1`, **1 push no aparelho**, e 1 linha nova em `care_reminder_sent` com `local_date` de hoje.
-3. Segundo disparo imediato, idêntico: `list_accounts_due_for_reminder()` deve agora excluir a conta → `accountsConsidered: 0`, `pushSent: 0`, **nenhum push novo**, e `care_reminder_sent` continua com exatamente 1 linha.
-4. Evidência reportada: as duas respostas JSON, `count(*)` antes/depois e a linha de dedupe (`task_count`, `delivered_count`).
+Passos:
+1. Snapshot de `id, timezone, reminder_hour` das duas contas.
+2. Definir `6e8f4626…` → `Europe/Madrid` com `reminder_hour` = hora local de Madrid no instante do teste (elegível).
+3. Definir `bcb26fe4…` → `America/Sao_Paulo` com o mesmo `reminder_hour` numérico (São Paulo está 5h atrás de Madrid, então no mesmo instante UTC essa conta **não** é elegível).
+4. Executar apenas `select * from list_accounts_due_for_reminder()` — nada de HTTP, nada de FCM, nada de push.
+5. Evidência esperada: a lista contém `6e8f4626…` com `timezone: Europe/Madrid` e `local_date` de Madrid, e **não** contém `bcb26fe4…`.
+6. Prova complementar (mesma seleção, papéis invertidos): trocar os `reminder_hour` para a hora local de São Paulo e reexecutar a função — agora `bcb26fe4…` aparece e `6e8f4626…` some. Isso descarta coincidência e prova que a decisão vem do par timezone+reminder_hour, não do relógio do servidor.
+7. Restaurar exatamente os valores do snapshot do passo 1.
 
-Ruído no aparelho: exatamente **1 notificação**, no passo 2. Confirmo com você antes de disparar.
+Push no aparelho: **zero**. Dados criados: nenhum.
 
-Se preferir zero notificação, faço a mesma prova removendo temporariamente o token de push da conta — mas aí `delivered = 0` e a linha de dedupe não é escrita (por desenho), então o teste vira "dedupe por RPC" apenas, checando o retorno de `list_accounts_due_for_reminder()` com e sem linha em `care_reminder_sent`.
+## Teste 2 — Token morto (zero push no seu aparelho)
 
-## Teste 2 — Conta sem tarefas elegíveis
+Conta usada: `bcb26fe4…` (Tester QA) — já tem 1 planta e 1 perfil com intervalo de rega, portanto tarefa vencida existe sem eu criar nada. Confirmo isso antes com uma query de derivação. O token do seu aparelho não é lido, alterado nem apagado em nenhum passo.
 
-Uso `024ba742…` (Teste Planta): 1 planta, nenhum perfil com intervalo, 0 tokens. Nada é criado nem alterado.
+Passos:
+1. Snapshot: `select * from push_subscriptions` (deve continuar com exatamente 1 linha, a sua) e `count(*)` de `care_reminder_sent` da conta de QA (0).
+2. Inserir 1 linha temporária em `push_subscriptions` para `bcb26fe4…` com `fcm_token = 'qa-stale-token-<uuid>'` (≥20 chars, formato claramente inválido) e `user_id` do dono dessa conta.
+3. Disparo manual: `POST /api/public/hooks/care-reminders` com `{"accountId":"bcb26fe4…","dryRunDedupe":true}`. `dryRunDedupe` evita escrever linha de dedupe — e, de todo modo, com `delivered = 0` o código não escreveria.
+4. Evidências esperadas: `tokens: 1`, `delivered: 0`, `pushFailed: 1`, `staleTokensRemoved: 1`, e `select count(*) from push_subscriptions where fcm_token like 'qa-stale-%'` = 0 depois.
+5. Se `staleTokensRemoved: 0`: leio o log da função e o corpo do erro FCM e reporto a classificação real (`INVALID_ARGUMENT` não coberto), removendo a linha temporária manualmente.
+6. Limpeza: remover a linha `qa-stale-%` (se ainda existir) e qualquer linha de `care_reminder_sent` da conta de QA (não deve haver). Conta, planta e perfil de QA já existiam — não são apagados, apenas reportados como intocados.
 
-- Disparo manual com `{"accountId":"024ba742…"}`.
-- Esperado: `accountsConsidered: 1`, `accountsNotified: 0`, `pushSent: 0`, `pushFailed: 0`, `accounts: []` (o loop faz `continue` antes de notificar).
-- Prova complementar: `select count(*) from care_reminder_sent where account_id='024ba742…'` = 0 antes e depois.
-- Zero push (a conta não tem token) — nenhum ruído no seu aparelho.
+Push no aparelho: **zero** (o disparo é escopado à conta de QA, que não tem seu token).
 
-## Teste 3 — Integridade e observabilidade do log
+## Teste 3 — Múltiplos dispositivos
 
-- **Ciclo vazio**: comparo `count(*)` de `reminder_run_log` antes/depois do disparo do Teste 2 e mostro a linha nova: `started_at` < `finished_at`, `error` nulo, contadores todos 0 e `triggered_manually: true`.
-- **Ciclo com entrega**: a linha gerada no passo 2 do Teste 1 deve trazer `accounts_considered: 1`, `accounts_notified: 1`, `push_sent: 1`, `push_failed: 0`, `stale_tokens_removed: 0`, `triggered_manually: false`.
-- **Ciclo automático**: reporto também a linha do cron das :05 mais próxima, para mostrar que ciclos sem contas elegíveis continuam gravando uma única linha coerente.
+Objetivo honesto: provar que o job **enumera e tenta todos os tokens da conta**, não que dois aparelhos receberam. Duas variantes, você escolhe:
 
-## Limpeza ao final
+**Variante A — sem push no seu aparelho (recomendada):** dois tokens sintéticos na conta de QA `bcb26fe4…`. Resultado esperado: `tokens: 2`, `delivered: 0`, `pushFailed: 2`, `staleTokensRemoved: 2`, `accountsNotified: 0`, e as duas linhas removidas. Prova o fan-out por token e a limpeza em lote. Zero push.
 
-- `reminder_hour` da conta real restaurado para `9`.
-- Linha de `care_reminder_sent` criada no teste removida (chave `account_id` + `local_date` de hoje), para não bloquear o lembrete real de amanhã… na prática ela é de hoje, então removo só se você quiser receber o lembrete de hoje novamente; caso contrário deixo, é o comportamento normal.
-- Nada mais é criado: sem contas novas, sem plantas novas, sem tokens novos. Linhas de `reminder_run_log` são histórico e ficam.
+**Variante B — com 1 push real no seu aparelho:** insiro 1 token sintético temporário **na sua conta real** `fffbe247…` (o token real fica intocado) e disparo manual com `dryRunDedupe: true`. Esperado: `tokens: 2`, `delivered: 1`, `pushFailed: 1`, `staleTokensRemoved: 1`; o token real permanece na tabela, o sintético some. Isso é a prova mais próxima de multi-dispositivo real: entrega parcial com falha isolada não bloqueia o token bom. Custo: **1 notificação** no seu aparelho, num único passo, avisado antes.
+
+Limpeza em ambas: remover só as linhas `qa-stale-%`; nenhuma linha de dedupe é escrita (`dryRunDedupe: true`); token real preservado.
+
+## Resumo de limpeza e restauração
+
+- Restaurado: `timezone` e `reminder_hour` das duas contas de QA do Teste 1 (valores do snapshot).
+- Removido: todas as linhas `push_subscriptions` com `fcm_token like 'qa-stale-%'`.
+- Preservado: token real do seu aparelho, conta real, plantas, perfis e logs de cuidado — nada é criado nem apagado neles.
+- Histórico: linhas de `reminder_run_log` geradas pelos disparos ficam (são log, por desenho).
 
 ## Confirmação que preciso de você
 
-1. Autorizo 1 push real no aparelho no Teste 1 (ou prefere a variante sem push)?
-2. Devo apagar a linha de `care_reminder_sent` do dia ao final?
+1. Teste 3: Variante A (zero push) ou Variante B (1 push real)?
+2. Posso usar a conta de QA `bcb26fe4…` e sua planta existente como alvo do Teste 2, sem criar nem apagar nada nela?
