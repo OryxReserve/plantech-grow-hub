@@ -151,7 +151,7 @@ export function ProductForm({
             </span>
           </Label>
           <Select
-            value={category === "" ? undefined : category}
+            {...(category === "" ? {} : { value: category })}
             onValueChange={setCategory}
           >
             <SelectTrigger id="product-category">
@@ -193,7 +193,7 @@ export function ProductForm({
               ({t("field.optional")})
             </span>
           </Label>
-          <Select value={unit === "" ? undefined : unit} onValueChange={setUnit}>
+          <Select {...(unit === "" ? {} : { value: unit })} onValueChange={setUnit}>
             <SelectTrigger id="product-unit">
               <SelectValue placeholder={t("products.field.unitPlaceholder")} />
             </SelectTrigger>
