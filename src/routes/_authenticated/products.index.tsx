@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Package, Plus } from "lucide-react";
+import { Package, Plus, ScanLine } from "lucide-react";
 
 import { ProductListItem } from "@/components/products/product-list-item";
 import { PlantScreen } from "@/components/plants/screen";
@@ -56,6 +56,17 @@ function ProductsListPage() {
         ) : null
       }
     >
+      {activeAccountId ? (
+        <div className="mb-4">
+          <Button asChild variant="outline" className="h-12 w-full text-base">
+            <Link to="/products/label">
+              <ScanLine className="size-5" aria-hidden />
+              {t("productLabel.cta")}
+            </Link>
+          </Button>
+        </div>
+      ) : null}
+
       <div className="mb-5">
         <SegmentedTabs
           groupId="products-filter"
@@ -109,6 +120,14 @@ function ProductsListPage() {
               <Link to="/products/new">
                 <Plus className="size-5" aria-hidden />
                 {t("products.empty.cta")}
+              </Link>
+            </Button>
+          ) : null}
+          {tab === "active" ? (
+            <Button asChild variant="ghost" className="w-full max-w-xs">
+              <Link to="/products/label">
+                <ScanLine className="size-4" aria-hidden />
+                {t("productLabel.cta")}
               </Link>
             </Button>
           ) : null}
