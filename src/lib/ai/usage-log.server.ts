@@ -2,10 +2,12 @@ import type { AiVisionErrorCategory } from "./vision-provider";
 
 export const AI_FEATURE_PLANT_IDENTIFICATION = "plant_identification";
 export const AI_FEATURE_SPECIES_CARE_GUIDE = "species_care_guide";
+export const AI_FEATURE_PRODUCT_LABEL = "product_label";
 
 export type AiFeature =
   | typeof AI_FEATURE_PLANT_IDENTIFICATION
-  | typeof AI_FEATURE_SPECIES_CARE_GUIDE;
+  | typeof AI_FEATURE_SPECIES_CARE_GUIDE
+  | typeof AI_FEATURE_PRODUCT_LABEL;
 
 /** Trigger `validate_ai_usage_payload` rejects payloads above 4096 bytes. */
 const MAX_PAYLOAD_BYTES = 3500;
